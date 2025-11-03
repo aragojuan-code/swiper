@@ -1,0 +1,344 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"/>
+<title>Swiper – El Bosque de los Susurros</title>
+<meta name="theme-color" content="#0b0f14"/>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#101722; --ink:#e6eef7; --muted:#9fb3c9; --accent:#6ab0ff;
+    --ok:#4ade80; --warn:#fbbf24; --bad:#fb7185; --shadow:rgba(0,0,0,.5);
+    --card-w: min(92vw, 520px); --ratio: 1.25; /* 4:5 => alto = 1.25 * ancho */
+    --card-h: calc(var(--card-w) * var(--ratio));
+    --radius: 16px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial}
+  a{text-decoration:none;color:inherit}
+  .wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;gap:16px;padding:18px}
+  header{width:100%;max-width:720px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+  h1{font-size:18px;margin:0;opacity:.9}
+  .crumbs{font-size:12px;color:var(--muted)}
+  .board{position:relative;width:var(--card-w);height:var(--card-h)}
+  .card{
+    position:absolute;inset:0;border-radius:var(--radius);
+    background:#0e1520; box-shadow:0 10px 30px var(--shadow), inset 0 0 0 1px rgba(255,255,255,.06);
+    overflow:hidden; touch-action:none; user-select:none;
+    display:grid; grid-template-rows:1fr auto;
+  }
+  .card img{width:100%;height:100%;object-fit:cover;display:block;filter:contrast(1) saturate(.95) brightness(.95)}
+  .fade{position:absolute;inset:0;background:linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,.05) 60%);pointer-events:none}
+  .text{
+    padding:12px 14px; font-size:14px; line-height:1.35; color:#dfe8f5;
+    background:linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,.0));
+  }
+  .choices{
+    position:absolute; inset:auto 10px 10px; display:flex; gap:10px; justify-content:space-between;
+  }
+  .btn{
+    flex:1; padding:12px 10px; border-radius:12px; border:1px solid rgba(255,255,255,.08);
+    background:rgba(255,255,255,.04); color:#e6eef7; font-weight:600; font-size:14px;
+    backdrop-filter: blur(4px); cursor:pointer;
+  }
+  .btn:active{transform:translateY(1px);opacity:.9}
+  .btn.left{outline:1px solid rgba(255,255,255,.06)}
+  .btn.right{outline:1px solid rgba(255,255,255,.06)}
+  .hint{position:absolute;top:8px;font-size:11px;color:#c9d5e7;background:rgba(0,0,0,.35);padding:6px 8px;border-radius:10px;left:8px}
+  .toast{
+    position:fixed;left:50%;transform:translateX(-50%);
+    bottom:18px;background:#0e1520;border:1px solid rgba(255,255,255,.08);
+    color:#dfe8f5;padding:10px 12px;border-radius:12px;font-size:13px;opacity:0;pointer-events:none;
+    box-shadow:0 10px 30px var(--shadow);
+  }
+  .toast.show{opacity:1;transition:opacity .25s}
+  .pill{font-size:11px;color:#9fb3c9;padding:4px 8px;border:1px solid rgba(255,255,255,.08);border-radius:999px}
+  .topbar{display:flex;align-items:center;gap:10px}
+  .ghost{opacity:.7}
+  .kb{display:none}@media (min-width:700px){.kb{display:block;color:var(--muted);font-size:12px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="topbar">
+      <span class="pill" id="worldTag">Bosque</span>
+      <span class="crumbs" id="crumbs">1 / 1</span>
+    </div>
+    <div class="kb">← izquierda · → derecha · R reiniciar</div>
+  </header>
+
+  <div class="board" id="board">
+    <!-- Las cartas se inyectan aquí -->
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+/* =============================
+   CONFIG
+============================= */
+
+// Supabase public object URL (para LEER imágenes públicas)
+const PROJECT_REF = "rdoivmucgucouauyqdos"; // si cambias de proyecto, ajusta esto
+const PUBLIC_BASE = `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/swiper`;
+
+// Utilidad: genera filename si no viene dado (convierte id a snake + .png)
+const slug = s => String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+  .replace(/[^a-zA-Z0-9]+/g,"_").replace(/^_+|_+$/g,"").toLowerCase();
+
+
+// 🔹 EJEMPLO mínimo: 1 carta con tu imagen generada
+// Sustituye/expande con tu dataset real o haz fetch a tu JSON.
+const CARDS = [
+  {
+    mundo: "El Bosque de los Susurros",
+    id: "carta_1_despertar",
+    tipo: "decision",
+    texto: "Despiertas otra vez. El bosque respira contigo. El aire parece esperar tu primer movimiento.",
+    optL: "Quedarte escuchando el viento",
+    resL: "→ 2B",
+    optR: "Soplar las hojas del suelo",
+    resR: "→ 2A",
+    // si ya tienes el nombre exacto de archivo, ponlo en imageFilename:
+    imageFilename: "el_bosque_de_los_carta_1_despertar.png",
+    // si no, el engine derivará uno como slug(id)+".png"
+  }
+];
+
+// Si quisieras cargar todas tus cartas desde un JSON publicado:
+// fetch("https://TU_DOMINIO/cartas.json").then(r => r.json()).then(d => { CARDS.splice(0,CARDS.length,...d); init(); });
+
+/* =============================
+   ENGINE BÁSICO
+============================= */
+
+const byId = (arr) => Object.fromEntries(arr.map(o => [o.id, o]));
+const state = {
+  world: "El Bosque de los Susurros",
+  index: 0,        // índice actual dentro de "order"
+  order: [],       // secuencia navegable (por id)
+  map: {}          // mapa id → carta
+};
+
+// Para demo: sólo secuencia con la primera carta. En producción,
+ // puedes construir "order" leyendo tu tabla (por mundo) o ir saltando por ID.
+state.order = CARDS.map(c => c.id);
+state.map = byId(CARDS);
+
+function imageUrlFor(card){
+  const fname = card.imageFilename || (slug(card.id) + ".png");
+  return `${PUBLIC_BASE}/${fname}`;
+}
+
+function el(tag, cls){
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  return n;
+}
+
+function setCrumbs(){
+  const crumbs = document.getElementById("crumbs");
+  crumbs.textContent = `${state.index+1} / ${state.order.length}`;
+  document.getElementById("worldTag").textContent = (state.map[state.order[state.index]]?.mundo) || "Mundo";
+}
+
+function toast(msg, ms=1400){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._h);
+  t._h = setTimeout(()=> t.classList.remove("show"), ms);
+}
+
+function renderCard(card){
+  const board = document.getElementById("board");
+  board.innerHTML = "";
+
+  const wrap = el("div","card");
+  wrap.style.transform = "translate3d(0,0,0)";
+
+  const img = el("img");
+  img.src = imageUrlFor(card);
+  img.alt = card.id;
+
+  const fade = el("div","fade");
+
+  const text = el("div","text");
+  text.innerHTML = `<div class="ghost" style="font-size:12px;margin-bottom:4px;">${card.id.replace(/_/g," · ")}</div>${card.texto}`;
+
+  const hint = el("div","hint");
+  hint.textContent = "Desliza ← / →";
+
+  const choices = el("div","choices");
+  const bL = el("button","btn left");
+  const bR = el("button","btn right");
+  bL.textContent = card.optL || "←";
+  bR.textContent = card.optR || "→";
+  bL.onclick = ()=> applyResult(card.resL || "");
+  bR.onclick = ()=> applyResult(card.resR || "");
+
+  choices.append(bL,bR);
+  wrap.append(img, fade, text, choices, hint);
+  board.append(wrap);
+
+  // Gestos
+  enableSwipe(wrap, (dir)=> {
+    if (dir==="left") applyResult(card.resL || "");
+    if (dir==="right") applyResult(card.resR || "");
+  });
+
+  setCrumbs();
+}
+
+function goToId(id){
+  // si el id existe en el mapa actual, lo renderizamos
+  const card = state.map[id];
+  if (!card){
+    toast(`No encuentro la carta "${id}" (aún no cargada).`);
+    return;
+  }
+  state.index = state.order.indexOf(id);
+  if (state.index < 0){
+    // si la carta existe pero no está en order, la añadimos al vuelo
+    state.order.push(id);
+    state.index = state.order.length-1;
+  }
+  renderCard(card);
+}
+
+function restartWorld(){
+  // busca la primera carta de este mundo en order
+  const first = CARDS.find(c => c.mundo === state.world) || CARDS[0];
+  state.world = first.mundo;
+  goToId(first.id);
+}
+
+function parseResult(s){
+  const clean = String(s||"").trim();
+
+  // FIN
+  if (/fin del juego/i.test(clean)) return {type:"finish"};
+
+  // PASS → MUNDO X
+  const pass = clean.match(/pass\s*→\s*(mundo\s*\d+|castillo|monstruo|princesa)/i);
+  if (pass) return {type:"pass", to: pass[1].toUpperCase()};
+
+  // REINICIA
+  if (/reinicia/i.test(clean)) return {type:"restart"};
+
+  // LOOP → X
+  const loop = clean.match(/loop\s*→\s*([^\s]+)/i);
+  if (loop) return {type:"goto", id: normalizeShortId(loop[1])};
+
+  // → 2B / → 3A_end_algo
+  const goto = clean.match(/→\s*([^\s]+)/);
+  if (goto) return {type:"goto", id: normalizeShortId(goto[1])};
+
+  return {type:"noop"};
+}
+
+// Convierte “2B” a “carta_2B_...” si existe una sola que empiece así.
+// Para producción: usa un índice completo de tus IDs.
+function normalizeShortId(token){
+  // si ya parece un id completo, lo devolvemos
+  if (/^carta_/i.test(token)) return token;
+  // intenta encontrar por prefijo (p.ej. "2B")
+  const key = token.toLowerCase();
+  const hit = Object.keys(state.map).find(k => k.toLowerCase().includes(`_${key}`));
+  return hit || token;
+}
+
+function applyResult(res){
+  const parsed = parseResult(res);
+
+  switch(parsed.type){
+    case "finish":
+      toast("FIN DEL JUEGO ✨", 1800);
+      // aquí podrías emitir un evento o redirigir a tu hub:
+      // location.href = "/hub";
+      break;
+
+    case "pass":
+      toast(`Pasas a ${parsed.to} ➜`, 1200);
+      // aquí montarías el cambio de dataset de cartas por mundo.
+      // demo: simplemente reinicio
+      restartWorld();
+      break;
+
+    case "restart":
+      toast("Reinicias el mundo ↺", 900);
+      restartWorld();
+      break;
+
+    case "goto":
+      goToId(parsed.id);
+      break;
+
+    default:
+      toast("…", 600);
+  }
+}
+
+/* =============================
+   SWIPE HANDLER
+============================= */
+function enableSwipe(el, cb){
+  let startX=0, startY=0, dx=0, dy=0, active=false;
+
+  const onDown = (e)=>{
+    active = true;
+    const p = point(e);
+    startX = p.x; startY = p.y; dx=0; dy=0;
+    el.setPointerCapture?.(e.pointerId);
+  };
+  const onMove = (e)=>{
+    if(!active) return;
+    const p = point(e);
+    dx = p.x-startX; dy = p.y-startY;
+    el.style.transform = `translate3d(${dx}px, ${dy*0.2}px, 0) rotate(${dx*0.05}deg)`;
+    el.style.opacity = String(Math.max(0.35, 1 - Math.abs(dx)/500));
+  };
+  const onUp = ()=>{
+    if(!active) return;
+    active=false;
+    const thresh = 60;
+    if (dx < -thresh) cb("left");
+    else if (dx > thresh) cb("right");
+    // reset
+    el.style.transition = "transform .18s ease, opacity .18s ease";
+    el.style.transform = "translate3d(0,0,0) rotate(0)";
+    el.style.opacity = "1";
+    setTimeout(()=> el.style.transition = "", 200);
+  };
+
+  el.addEventListener("pointerdown", onDown);
+  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointerup", onUp);
+  window.addEventListener("pointercancel", onUp);
+}
+
+function point(e){ return {x:e.clientX ?? (e.touches?.[0]?.clientX||0), y:e.clientY ?? (e.touches?.[0]?.clientY||0)}; }
+
+/* =============================
+   KEYBOARD + INIT
+============================= */
+window.addEventListener("keydown",(e)=>{
+  const cur = state.map[state.order[state.index]];
+  if(!cur) return;
+  if(e.key==="ArrowLeft"){ applyResult(cur.resL||""); }
+  if(e.key==="ArrowRight"){ applyResult(cur.resR||""); }
+  if(e.key.toLowerCase()==="r"){ restartWorld(); }
+});
+
+function init(){
+  // set world from first card
+  state.world = CARDS[0]?.mundo || "Mundo";
+  goToId(state.order[0]);
+}
+init();
+
+</script>
+</body>
+</html>
