@@ -364,15 +364,30 @@ function parseResult(s){
 }
 
 function normalizeShortId(token){
+  const preferWorld = state.world;              // mundo de la carta actual
   const t = String(token||"").toLowerCase();
-  if (t.startsWith("carta_")) return token;
   const keys = Object.keys(state.map);
-  const hit = keys.find(k=>{
-    const kk = k.toLowerCase();
-    return kk.endsWith(`_${t}`) || kk.includes(`_${t}_`) || kk===t;
-  });
-  return hit || token;
+  if (!t) return token;
+
+  // función de puntuación: primero forma del id, luego mundo preferido
+  const score = (id)=>{
+    const kk = id.toLowerCase();
+    let s = 0;
+    if (kk === t) s += 100;                     // match exacto
+    if (kk.endsWith(`_${t}`)) s += 60;          // sufijo _2, _escaleras, etc.
+    if (kk.includes(`_${t}_`)) s += 40;         // _2_ en medio
+    if (kk.includes(t)) s += 20;                // contiene el token
+    if (state.map[id]?.mundo === preferWorld) s += 10; // preferir mismo mundo
+    return s;
+  };
+
+  const best = keys
+    .map(id => [score(id), id])
+    .sort((a,b)=> b[0] - a[0])[0];
+
+  return (best && best[0] > 0) ? best[1] : token;
 }
+
 
 function canonicalWorldName(token){
   const k = slug(token).toLowerCase();
