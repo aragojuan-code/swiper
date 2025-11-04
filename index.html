@@ -9,73 +9,94 @@
 <style>
   :root{
     --bg:#0b0f14; --panel:#101722; --ink:#e6eef7; --muted:#9fb3c9;
-    --shadow:rgba(0,0,0,.5);
-    --radius:16px;
-    --choices-h:96px; /* altura reservada para decisiones */
+    --shadow:rgba(0,0,0,.45);
+    --radius:22px;
+
+    /* Tamaño de tarjeta (NO pantalla completa) */
+    --card-w: min(92vw, 520px);
+    --ratio: 1.28;                    /* alto = ancho * ratio (aprox 9:11.5) */
+    --card-h: calc(var(--card-w) * var(--ratio));
+
+    /* Altura reservada para las decisiones dentro de la card */
+    --choices-h: 96px;
   }
 
-  /* Reset básico + suavizar gestos */
   *{box-sizing:border-box}
   html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial}
-  body{overflow:hidden;-webkit-user-select:none;user-select:none;touch-action:pan-y} /* permite scroll vertical del sistema, capturamos el horizontal */
+  body{overflow:hidden;-webkit-user-select:none;user-select:none;touch-action:pan-y}
 
-  /* Fondo video/velo */
+  /* Fondo video + velo general */
   .bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
   .bg video{position:absolute;width:100%;height:100%;object-fit:cover;filter:brightness(.9) saturate(.95) contrast(1)}
   .bg::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 110%, rgba(0,0,0,.55), rgba(0,0,0,.15) 50%, rgba(0,0,0,.05) 70%)}
   .veil{position:fixed;inset:0;background:linear-gradient(to bottom, rgba(5,8,12,.40), rgba(5,8,12,.25));z-index:0}
 
-  /* Estructura */
-  .wrap{position:relative;min-height:100vh;z-index:1}
-  header{position:fixed;left:0;right:0;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;
-    padding:calc(8px + env(safe-area-inset-top,0px)) 12px 8px}
+  /* Encabezado */
+  header{
+    position:fixed;left:0;right:0;top:0;z-index:2;
+    display:flex;justify-content:space-between;align-items:center;
+    padding:calc(8px + env(safe-area-inset-top,0px)) 12px 8px;
+  }
   .topbar{display:flex;gap:8px;font-size:12px;color:#c9d5e7;background:rgba(0,0,0,.35);padding:6px 10px;border-radius:12px}
   .kb{min-width:24px}
 
-  /* Tablero/carta */
-  .board{position:relative;min-height:100vh}
+  /* Área central: centra la tarjeta y deja aire al fondo */
+  .board{
+    position:relative; z-index:1;
+    min-height:100vh;
+    padding:calc(58px + env(safe-area-inset-top,0px)) 12px calc(24px + env(safe-area-inset-bottom,0px));
+    display:grid; place-items:center;
+  }
+
+  /* TARJETA flotante */
   .card{
     position:relative;
-    width:100%; height:100vh;
-    overflow:hidden; border-radius:0;
+    width:var(--card-w);
+    height:var(--card-h);
+    border-radius:var(--radius);
+    overflow:hidden;
+    box-shadow:0 18px 50px rgba(0,0,0,.45), 0 1px 0 rgba(255,255,255,.04) inset;
+    background:#0e1520;
     will-change:transform,opacity;
-    touch-action:none; /* el swipe lo controlamos nosotros */
+    touch-action:none; /* capturamos el swipe horizontal */
   }
   .card img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
-  .fade{position:absolute;inset:0;background:linear-gradient(to bottom, transparent 45%, rgba(0,0,0,.25) 65%, rgba(0,0,0,.55) 85%)}
+  .fade{position:absolute;inset:0;background:linear-gradient(to bottom, transparent 52%, rgba(0,0,0,.25) 68%, rgba(0,0,0,.55) 86%)}
 
-  /* Texto descriptivo: deja hueco para decisiones y barra iOS */
+  /* Texto dentro de la TARJETA (no en viewport) */
   .text{
     position:absolute; left:0; right:0;
-    bottom:calc(var(--choices-h) + 16px + env(safe-area-inset-bottom,0px));
+    bottom:calc(var(--choices-h) + 14px);
     padding:14px 16px; font-size:15px; line-height:1.45; color:#e9f1fb;
     background:linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0));
   }
 
-  /* Pista superior */
-  .hint{position:absolute;top:calc(8px + env(safe-area-inset-top,0px));left:8px;font-size:11px;color:#c9d5e7;background:rgba(0,0,0,.35);padding:6px 8px;border-radius:10px}
+  /* Pista */
+  .hint{
+    position:absolute; top:10px; left:10px;
+    font-size:11px; color:#c9d5e7; background:rgba(0,0,0,.35);
+    padding:6px 8px; border-radius:10px
+  }
 
-  /* Decisiones SOLO texto (no clicables) */
+  /* Decisiones SOLO texto dentro de la card */
   .choices{
-    position:absolute; left:14px; right:14px;
-    bottom:calc(10px + env(safe-area-inset-bottom,0px));
-    min-height:var(--choices-h);
+    position:absolute; left:12px; right:12px;
+    bottom:12px; min-height:var(--choices-h);
     display:flex; gap:12px; align-items:stretch; justify-content:space-between;
-    pointer-events:none; /* no interactúan, solo se lee; el swipe va sobre .card */
+    pointer-events:none;
   }
   .choice{
     flex:1; display:flex; align-items:center; gap:8px; min-width:0;
     padding:12px 14px; border:1px solid rgba(255,255,255,.08); border-radius:14px;
     background:rgba(255,255,255,.06); backdrop-filter:blur(4px);
   }
-  .choice .opt{font-weight:700; font-size:15px; line-height:1.25; white-space:normal; overflow:visible; text-overflow:clip}
+  .choice .opt{font-weight:700; font-size:15px; line-height:1.25; white-space:normal}
   .choice .arr{opacity:.9; font-size:16px; flex:0 0 auto}
-  .choice-left{ justify-content:flex-start; text-align:left; }
-  .choice-left .arr{ order:-1; margin-right:8px; }
-  .choice-right{ justify-content:flex-end; text-align:right; }
-  .choice-right .arr{ order:1; margin-left:8px; }
+  .choice-left{ justify-content:flex-start; text-align:left }
+  .choice-left .arr{ order:-1; margin-right:8px }
+  .choice-right{ justify-content:flex-end; text-align:right }
+  .choice-right .arr{ order:1; margin-left:8px }
 
-  /* En pantallas estrechas: opciones apiladas */
   @media (max-width:360px){
     .choices{ flex-direction:column; gap:8px }
     :root{ --choices-h:120px }
@@ -91,23 +112,23 @@
 </style>
 </head>
 <body>
-<div class="bg"><video id="bgvid" playsinline muted loop autoplay></video></div>
-<div class="veil"></div>
+  <div class="bg"><video id="bgvid" playsinline muted loop autoplay></video></div>
+  <div class="veil"></div>
 
-<div class="wrap">
-  <header>
-    <div class="topbar"><span class="pill" id="worldTag">—</span><span class="crumbs" id="crumbs">—</span></div>
-    <div class="kb"></div>
-  </header>
-  <div class="board" id="board"></div>
-  <div class="toast" id="toast"></div>
-</div>
+  <div class="wrap">
+    <header>
+      <div class="topbar"><span class="pill" id="worldTag">—</span><span class="crumbs" id="crumbs">—</span></div>
+      <div class="kb"></div>
+    </header>
+    <div class="board" id="board"></div>
+    <div class="toast" id="toast"></div>
+  </div>
 
 <script>
 /* ========= CONFIG ========= */
 const PROJECT_REF = "rdoivmucgucouauyqdos";
 const DATA_BASE   = `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/data`;
-const IMG_BASE    = `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/swiper`;   // <-- sin /cards
+const IMG_BASE    = `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/swiper`;
 const WORLD_BASE  = `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/worlds`;
 const URL_CARDS   = `${DATA_BASE}/cards.json`;
 const URL_IMAGES  = `${DATA_BASE}/images.json`;
@@ -191,7 +212,7 @@ function imageUrlFor(card){
       const fname = (x.filename||x.file||"").toLowerCase().replace(/[^\w]+/g,"");
       return fname.includes(idKey);
     });
-    if (hit?.filename)  return `${IMG_BASE}/${hit.filename}`;  // priorizamos filename en tu bucket
+    if (hit?.filename)  return `${IMG_BASE}/${hit.filename}`;
     if (hit?.image_url) return hit.image_url;
     if (hit?.url)       return hit.url;
   }
@@ -210,7 +231,6 @@ function renderCard(card){
 
   const hint = el("div","hint"); hint.textContent = "Desliza ← / →";
 
-  // Decisiones (sólo informativas)
   const choices = el("div","choices");
   const chL = el("div","choice choice-left");
   chL.innerHTML = `<span class="arr">←</span><span class="opt">${card.optL || labelFromResult(card.resL,"Izquierda")}</span>`;
@@ -228,7 +248,6 @@ function renderCard(card){
 
   document.getElementById("worldTag").textContent = state.world;
 
-  // Auto en transiciones
   if (card.tipo === "transition"){
     setTimeout(()=>{
       const next = pickAutoResult(card);
@@ -273,7 +292,7 @@ function restartWorld(){
   goToId(state.order[0]);
 }
 
-/* Captura solo el primer token tras →/LOOP (ignora extras) */
+/* ======== PARSER ======== */
 function parseResult(s){
   const clean = slug(s||"");
 
@@ -299,7 +318,7 @@ function normalizeShortId(token){
   const hit = keys.find(k=>{
     const kk = k.toLowerCase();
     return kk.endsWith(`_${t}`) || kk.includes(`_${t}_`) || kk===t;
-    });
+  });
   return hit || token;
 }
 
@@ -313,7 +332,7 @@ function canonicalWorldName(token){
   return worlds.find(w => slug(w).toLowerCase().includes(k)) || state.world;
 }
 
-function applyResult(res, dir){
+function applyResult(res){
   const p = parseResult(res);
   switch(p.type){
     case "finish":
