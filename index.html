@@ -8,62 +8,63 @@
 <link rel="icon" href="data:,">
 <style>
   :root{
-    --bg:#0b0f14; --panel:#101722; --ink:#e6eef7; --muted:#9fb3c9; --accent:#6ab0ff;
+    --bg:#0b0f14; --panel:#101722; --ink:#e6eef7; --muted:#9fb3c9;
     --shadow:rgba(0,0,0,.5);
-    --card-w: min(92vw, 520px); --ratio: 1.25; /* 4:5 */
-    --card-h: calc(var(--card-w) * var(--ratio));
-    --radius: 16px;
+    --card-w:min(92vw,520px); --ratio:1.25; --card-h:calc(var(--card-w)*var(--ratio));
+    --radius:16px;
+    --choices-h:72px; /* altura del bloque de decisiones */
   }
   *{box-sizing:border-box}
   html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial}
   .wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;gap:16px;padding:18px;position:relative;z-index:1}
   header{width:100%;max-width:720px;display:flex;align-items:center;justify-content:space-between;gap:12px}
-  .crumbs{display:none} /* oculta 1/17 */
+  .crumbs{display:none}
+  .topbar .pill{font-size:11px;color:#9fb3c9;padding:4px 8px;border:1px solid rgba(255,255,255,.08);border-radius:999px}
   .board{position:relative;width:var(--card-w);height:var(--card-h)}
+
   .card{
-    position:absolute; inset:0; border-radius:var(--radius);
-    background:#0e1520; box-shadow:0 10px 30px var(--shadow), inset 0 0 0 1px rgba(255,255,255,.06);
-    overflow:hidden; touch-action:none; user-select:none;
+    position:absolute;inset:0;border-radius:var(--radius);
+    background:#0e1520;overflow:hidden;touch-action:none;user-select:none;
+    box-shadow:0 10px 30px var(--shadow), inset 0 0 0 1px rgba(255,255,255,.06);
   }
   .card img{
-    position:absolute; inset:0; width:100%; height:100%;
-    object-fit:cover; object-position:center 42%; /* baja un pelín el encuadre */
-    display:block; filter:contrast(1) saturate(.95) brightness(.95);
+    position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 42%;
+    filter:contrast(1) saturate(.95) brightness(.95);display:block;
   }
-  .fade{position:absolute;inset:0;background:linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,.05) 60%);pointer-events:none}
+  .fade{position:absolute;inset:0;background:linear-gradient(to top, rgba(0,0,0,.6), rgba(0,0,0,.08) 60%);pointer-events:none}
+
+  /* Descripción: deja hueco para las decisiones */
   .text{
-    position:absolute; left:0; right:0; bottom:88px;
-    padding:12px 14px; font-size:14px; line-height:1.35; color:#dfe8f5;
-    background:linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,.0));
+    position:absolute;left:0;right:0;bottom:calc(var(--choices-h) + 16px);
+    padding:14px 16px;font-size:15px;line-height:1.4;color:#e9f1fb;
+    background:linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0));
   }
+
+  /* Decisiones (no clicables) */
   .choices{
-    position:absolute; left:10px; right:10px; bottom:10px;
-    display:flex; gap:10px; justify-content:space-between;
+    position:absolute;left:10px;right:10px;bottom:10px;height:var(--choices-h);
+    display:flex;gap:10px;align-items:stretch;pointer-events:none; /* NO interactivas */
   }
-  .btn{
-    flex:1; padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.08);
-    background:rgba(255,255,255,.04); color:#e6eef7; font-weight:600; font-size:15px;
-    backdrop-filter: blur(4px); cursor:pointer; text-align:left;
+  .choice{
+    flex:1;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(255,255,255,.06);
+    backdrop-filter:blur(4px);padding:10px 12px;
+    display:flex;flex-direction:column;justify-content:center;
   }
-  .btn .opt{display:block;font-weight:600}
-  .btn .arr{display:block;opacity:.8;font-size:13px;margin-top:2px}
-  .btn:active{transform:translateY(1px);opacity:.92}
-  .hint{position:absolute;top:8px;font-size:11px;color:#c9d5e7;background:rgba(0,0,0,.35);padding:6px 8px;border-radius:10px;left:8px}
+  .choice .opt{font-weight:700;font-size:15px}
+  .choice .arr{opacity:.85;font-size:13px;margin-top:2px}
+
+  .hint{position:absolute;top:8px;left:8px;font-size:11px;color:#c9d5e7;background:rgba(0,0,0,.35);padding:6px 8px;border-radius:10px}
   .toast{
-    position:fixed;left:50%;transform:translateX(-50%);
-    bottom:18px;background:#0e1520;border:1px solid rgba(255,255,255,.08);
-    color:#dfe8f5;padding:10px 12px;border-radius:12px;font-size:13px;opacity:0;pointer-events:none;
-    box-shadow:0 10px 30px var(--shadow);z-index:4
+    position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:4;
+    background:#0e1520;border:1px solid rgba(255,255,255,.08);color:#dfe8f5;
+    padding:10px 12px;border-radius:12px;font-size:13px;opacity:0;pointer-events:none;box-shadow:0 10px 30px var(--shadow);
   }
   .toast.show{opacity:1;transition:opacity .25s}
-  .pill{font-size:11px;color:#9fb3c9;padding:4px 8px;border:1px solid rgba(255,255,255,.08);border-radius:999px}
-  .topbar{display:flex;align-items:center;gap:10px}
-  .kb{display:none}
 
-  .bg{position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none;}
-  .bg video{position:absolute; width:100%; height:100%; object-fit:cover; filter:brightness(.9) saturate(.95) contrast(1);}
-  .bg::after{content:""; position:absolute; inset:0;
-    background:radial-gradient(ellipse at 50% 110%, rgba(0,0,0,.55), rgba(0,0,0,.15) 50%, rgba(0,0,0,.05) 70%);}
+  /* Video fondo */
+  .bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
+  .bg video{position:absolute;width:100%;height:100%;object-fit:cover;filter:brightness(.9) saturate(.95) contrast(1)}
+  .bg::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 110%, rgba(0,0,0,.55), rgba(0,0,0,.15) 50%, rgba(0,0,0,.05) 70%)}
   .veil{position:fixed;inset:0;background:linear-gradient(to bottom, rgba(5,8,12,.4), rgba(5,8,12,.25));z-index:0}
 </style>
 </head>
@@ -73,58 +74,47 @@
 
 <div class="wrap">
   <header>
-    <div class="topbar">
-      <span class="pill" id="worldTag">—</span>
-      <span class="crumbs" id="crumbs">—</span>
-    </div>
+    <div class="topbar"><span class="pill" id="worldTag">—</span><span class="crumbs" id="crumbs">—</span></div>
     <div class="kb"></div>
   </header>
-
   <div class="board" id="board"></div>
   <div class="toast" id="toast"></div>
 </div>
 
 <script>
-/* ============ CONFIG (Supabase public URLs) ============ */
+/* ========= CONFIG ========= */
 const PROJECT_REF = "rdoivmucgucouauyqdos";
 const DATA_BASE   = `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/data`;
 const IMG_BASE    = `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/swiper`;
 const WORLD_BASE  = `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/worlds`;
-
 const URL_CARDS   = `${DATA_BASE}/cards.json`;
 const URL_IMAGES  = `${DATA_BASE}/images.json`;
 const URL_WORLDS  = `${DATA_BASE}/worlds.json`;
 
-/* ============ UTILS ============ */
-const slug = s => String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"")
-  .replace(/\s+/g," ").trim();
-
-const norm = s => slug(s).toLowerCase().replace(/[^\w]+/g,"");
+/* ========= UTILS ========= */
+const norm = s => String(s||"");
 const byId = (arr, key="id") => Object.fromEntries(arr.map(o => [o[key], o]));
+const slug = s => String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").trim();
 
-/* ============ STATE ============ */
+/* ========= STATE ========= */
 const state = { cards:[], map:{}, images:[], worlds:{}, world:"", order:[], index:0 };
 
-/* ============ DATA LOADING ============ */
+/* ========= LOAD ========= */
 async function loadJSON(url){
   const r = await fetch(url);
   if(!r.ok){ throw new Error(`No pude cargar ${url} (HTTP ${r.status})`); }
   const ct = r.headers.get("content-type")||"";
   return ct.includes("application/json") ? r.json() : JSON.parse(await r.text());
 }
-
 async function boot(){
-  const [cards, images, worlds] = await Promise.all([
-    loadJSON(URL_CARDS),
-    loadJSON(URL_IMAGES).catch(()=>[]),
-    loadJSON(URL_WORLDS).catch(()=> ({}))
+  const [cards, imgs, wlds] = await Promise.all([
+    loadJSON(URL_CARDS), loadJSON(URL_IMAGES).catch(()=>[]), loadJSON(URL_WORLDS).catch(()=>({}))
   ]);
-
-  const src = Array.isArray(cards) ? cards : cards.data || [];
-  state.cards = src.map(fuzzyNormalizeCard);
+  const src = Array.isArray(cards) ? cards : (cards.data||[]);
+  state.cards = src.map(normalizeCard);
   state.map   = byId(state.cards);
-  state.images = Array.isArray(images) ? images : (images.data||[]);
-  state.worlds = worlds || {};
+  state.images = Array.isArray(imgs) ? imgs : (imgs.data||[]);
+  state.worlds = wlds || {};
 
   state.world = state.cards[0]?.mundo || "El Bosque de los Susurros";
   rebuildOrderForWorld(state.world);
@@ -132,50 +122,38 @@ async function boot(){
   goToId(state.order[0]);
 }
 
-/* ===== robustez: detecta columnas aunque cambie el texto/espacios/flechas ===== */
-function fuzzyPick(obj, want){
-  // want: ['opcion','izquierda']  -> busca clave cuyo norm contiene todos
-  const keys = Object.keys(obj);
-  const w = want.map(x=>norm(x));
-  for(const k of keys){
-    const nk = norm(k);
-    if (w.every(x=> nk.includes(x))) return obj[k];
-  }
-  return undefined;
-}
-
-function fuzzyNormalizeCard(o){
+function normalizeCard(o){
+  const pick = (obj, keys) => keys.find(k=>k in obj) && obj[keys.find(k=>k in obj)];
   return {
-    mundo:   fuzzyPick(o,["mundo"]) ?? o.mundo ?? o.Mundo ?? "",
-    id:      String(fuzzyPick(o,["id","nombre"]) ?? o.id ?? o.ID ?? o.Nombre ?? ""),
-    tipo:   (fuzzyPick(o,["tipo"]) ?? o.tipo ?? o.Tipo ?? "decision").toLowerCase(),
-    texto:   fuzzyPick(o,["texto"]) ?? o.texto ?? o["Texto (breve)"] ?? "",
-    optL:    fuzzyPick(o,["opcion","izquierda"]) ?? o.optL ?? "",
-    resL:    fuzzyPick(o,["resultado","izquierda"]) ?? o.resL ?? "",
-    optR:    fuzzyPick(o,["opcion","derecha"]) ?? o.optR ?? "",
-    resR:    fuzzyPick(o,["resultado","derecha"]) ?? o.resR ?? "",
+    mundo:   pick(o,["Mundo","mundo"]) || "",
+    id:      String(pick(o,["ID / Nombre","id","ID","Nombre"])||""),
+    tipo:   (pick(o,["Tipo","tipo"]) || "decision").toLowerCase(),
+    texto:   pick(o,["Texto (breve)","texto"]) || "",
+    optL:    pick(o,["Opción ← (izquierda)","optL"]) || "",
+    resL:    pick(o,["Resultado ←","resL"]) || "",
+    optR:    pick(o,["Opción → (derecha)","optR"]) || "",
+    resR:    pick(o,["Resultado →","resR"]) || "",
     image_file: o.image_file || o.imageFilename || null,
   };
 }
 
 function rebuildOrderForWorld(worldName){
   const list = state.cards.filter(c => c.mundo === worldName);
-  list.sort((a,b)=> a.id.localeCompare(b.id, 'es', {numeric:true, sensitivity:'base'}));
+  list.sort((a,b)=> a.id.localeCompare(b.id,'es',{numeric:true,sensitivity:'base'}));
   state.order = list.map(c => c.id);
   state.index = 0;
 }
 
-/* ============ BACKGROUND VIDEO ============ */
+/* ========= BG VIDEO ========= */
 function setWorldBackground(worldName){
   const vid = document.getElementById("bgvid");
   const url = state.worlds[worldName] || guessWorldUrl(worldName);
   if(!url) return;
-  if (vid.src !== url) { vid.src = url; vid.play?.().catch(()=>{}); }
+  if (vid.src !== url){ vid.src = url; vid.play?.().catch(()=>{}); }
 }
 document.addEventListener("touchend", ()=>{ document.getElementById("bgvid")?.play?.().catch(()=>{}); }, {once:true});
-
 function guessWorldUrl(worldName){
-  const k = norm(worldName);
+  const k = slug(worldName).toLowerCase();
   if (k.includes("bosque"))   return `${WORLD_BASE}/bosque_bg.mp4`;
   if (k.includes("castillo")) return `${WORLD_BASE}/castillo_bg.mp4`;
   if (k.includes("monstruo")) return `${WORLD_BASE}/monstruo_bg.mp4`;
@@ -183,29 +161,21 @@ function guessWorldUrl(worldName){
   return "";
 }
 
-/* ============ RENDER ============ */
+/* ========= RENDER ========= */
 function imageUrlFor(card){
   if (card.image_file) return `${IMG_BASE}/${card.image_file}`;
-  const idSlug = norm(card.id);
-  if (Array.isArray(state.images) && state.images.length){
+  const idKey = slug(card.id).toLowerCase().replace(/[^\w]+/g,"");
+  if (state.images.length){
     const hit = state.images.find(x=>{
-      const fname = (x.filename||x.file||"").toLowerCase();
-      return fname.replace(/[^\w]+/g,"").includes(idSlug);
+      const fname = (x.filename||x.file||"").toLowerCase().replace(/[^\w]+/g,"");
+      return fname.includes(idKey);
     });
-    if (hit?.url) return hit.url;
-    if (hit?.filename) return `${IMG_BASE}/${hit.filename}`;
+    if (hit?.image_url) return hit.image_url;
+    if (hit?.url)       return hit.url;
+    if (hit?.filename)  return `${IMG_BASE}/${hit.filename}`;
   }
-  const fname = `${norm(card.mundo)}_${idSlug}.png`;
+  const fname = `${slug(card.mundo).toLowerCase().replace(/[^\w]+/g,"_")}_${slug(card.id).toLowerCase().replace(/[^\w]+/g,"_")}.png`;
   return `${IMG_BASE}/${fname}`;
-}
-
-function labelFromResult(res, fallback){
-  const p = parseResult(res);
-  if (p.type==="finish")  return "Finalizar";
-  if (p.type==="restart") return "Reiniciar";
-  if (p.type==="pass")    return "Pasar de mundo";
-  if (p.type==="goto")    return "Avanzar";
-  return fallback;
 }
 
 function renderCard(card){
@@ -213,32 +183,31 @@ function renderCard(card){
   board.innerHTML = "";
 
   const wrap = el("div","card");
-  const img = el("img"); img.src = imageUrlFor(card); img.alt = "";
+  const img  = el("img"); img.src = imageUrlFor(card); img.alt = "";
   const fade = el("div","fade");
   const text = el("div","text"); text.textContent = card.texto || "";
 
   const hint = el("div","hint"); hint.textContent = "Desliza ← / →";
 
+  // Decisiones solo como texto (no clicables)
   const choices = el("div","choices");
-  const bL = el("button","btn");
-  const bR = el("button","btn");
-  bL.innerHTML = `<span class="opt">${card.optL || labelFromResult(card.resL,"Izquierda")}</span><span class="arr">←</span>`;
-  bR.innerHTML = `<span class="opt">${card.optR || labelFromResult(card.resR,"Derecha")}</span><span class="arr">→</span>`;
-  bL.onclick = ()=> applyResult(card.resL || "", "left");
-  bR.onclick = ()=> applyResult(card.resR || "", "right");
+  const chL = el("div","choice");
+  chL.innerHTML = `<span class="opt">${card.optL || labelFromResult(card.resL,"Izquierda")}</span><span class="arr">←</span>`;
+  const chR = el("div","choice");
+  chR.innerHTML = `<span class="opt">${card.optR || labelFromResult(card.resR,"Derecha")}</span><span class="arr">→</span>`;
+  choices.append(chL,chR);
 
-  choices.append(bL,bR);
   wrap.append(img, fade, text, choices, hint);
   board.append(wrap);
 
-  enableSwipe(wrap, (dir)=> {
-    if (dir==="left")  applyResult(card.resL || "", "left");
-    if (dir==="right") applyResult(card.resR || "", "right");
+  enableSwipe(wrap, dir=>{
+    if(dir==="left")  applyResult(card.resL||"", "left");
+    if(dir==="right") applyResult(card.resR||"", "right");
   });
 
   document.getElementById("worldTag").textContent = state.world;
 
-  // auto-transiciones
+  // Auto en transiciones
   if (card.tipo === "transition"){
     setTimeout(()=>{
       const next = pickAutoResult(card);
@@ -247,24 +216,30 @@ function renderCard(card){
   }
 }
 
+function labelFromResult(res, fallback){
+  const p = parseResult(res);
+  if (p.type==="finish")  return "Final";
+  if (p.type==="restart") return "Reiniciar";
+  if (p.type==="pass")    return "Cambiar de mundo";
+  if (p.type==="goto")    return "Avanzar";
+  return fallback;
+}
+
 function pickAutoResult(card){
   const cands = [card.resL, card.resR].filter(Boolean);
-  for (const r of cands){
+  for(const r of cands){
     const p = parseResult(r);
-    if (p.type==="restart" || p.type==="pass" || p.type==="goto" || p.type==="finish")
-      return {cmd:r, dir:"right"};
+    if(["restart","pass","goto","finish"].includes(p.type)) return {cmd:r, dir:"right"};
   }
   return {cmd:"REINICIA → 1", dir:"right"};
 }
 
-/* ============ NAV / PARSER ============ */
+/* ========= NAV + PARSER ========= */
 function goToId(id){
   const card = state.map[id];
   if(!card){ toast(`No encuentro la carta "${id}"`); return; }
   if (card.mundo !== state.world){
-    state.world = card.mundo;
-    rebuildOrderForWorld(state.world);
-    setWorldBackground(state.world);
+    state.world = card.mundo; rebuildOrderForWorld(state.world); setWorldBackground(state.world);
   }
   state.index = state.order.indexOf(card.id);
   if (state.index < 0){ state.order.push(card.id); state.index = state.order.length-1; }
@@ -277,133 +252,97 @@ function restartWorld(){
   goToId(state.order[0]);
 }
 
+/* Captura únicamente el primer token [A-Za-z0-9_] después de →/LOOP  (ignora emojis, paréntesis, textos extra) */
 function parseResult(s){
   const clean = slug(s||"");
-  if (!clean) return {type:"noop"};
 
-  // FIN DEL JUEGO
   if (/fin\s*del\s*juego/i.test(clean)) return {type:"finish"};
-
-  // REINICIA (con o sin flecha/numero)
   if (/reinicia/i.test(clean)) return {type:"restart"};
 
-  // PASS → CASTILLO / PASS → MUNDO 4
-  let m = clean.match(/pass.*?→\s*(.+)$/i);
-  if (m) return {type:"pass", to: m[1].trim()};
+  // PASS → CASTILLO / PASS → MUNDO 3
+  let m = clean.match(/pass.*?→\s*([A-Za-z0-9_]+)/i);
+  if (m) return {type:"pass", to: m[1]};
 
-  // LOOP → 2A / LOOP a 1
-  m = clean.match(/loop\s*(?:→|a)\s*(.+)$/i);
-  if (m) return {type:"goto", id: normalizeShortId(m[1].trim())};
+  // LOOP → 2B / LOOP a 1
+  m = clean.match(/loop\s*(?:→|a)\s*([A-Za-z0-9_]+)/i);
+  if (m) return {type:"goto", id: normalizeShortId(m[1])};
 
-  // → 3B / → carta_3A_end
-  m = clean.match(/→\s*(.+)$/);
-  if (m) return {type:"goto", id: normalizeShortId(m[1].trim())};
+  // → 3D_end_savia (transition)  -> 3D_end_savia
+  m = clean.match(/→\s*([A-Za-z0-9_]+)/);
+  if (m) return {type:"goto", id: normalizeShortId(m[1])};
 
   return {type:"noop"};
 }
 
 function normalizeShortId(token){
-  const t = token.trim();
-  if (/^carta_/i.test(t)) return t;
-  const low = t.toLowerCase();
-  // busca sufijos/contiene: "_3b", "_3b_end", "3b_end"
-  const hit = Object.keys(state.map).find(k=>{
+  const t = String(token||"").toLowerCase();
+  if (t.startsWith("carta_")) return token;
+  const keys = Object.keys(state.map);
+  // busca por sufijo o coincidencia dentro del id
+  const hit = keys.find(k=>{
     const kk = k.toLowerCase();
-    return kk.endsWith(`_${low}`) || kk.includes(`_${low}_`) || kk===low;
+    return kk.endsWith(`_${t}`) || kk.includes(`_${t}_`) || kk===t;
   });
-  return hit || t;
+  return hit || token;
 }
 
 function canonicalWorldName(token){
-  const k = norm(token);
+  const k = slug(token).toLowerCase();
   if (k.includes("castillo")) return "El Castillo de los Espejos";
   if (k.includes("monstruo")) return "El Monstruo Final";
   if (k.includes("princesa")) return "La Princesa Durmiente";
-  if (k.includes("bosque") || k.includes("mundo1") || k==="1") return "El Bosque de los Susurros";
+  if (k.includes("bosque") || k.includes("mundo_1") || k==="1") return "El Bosque de los Susurros";
   const worlds = [...new Set(state.cards.map(c=>c.mundo))];
-  return worlds.find(w => norm(w).includes(k)) || state.world;
+  return worlds.find(w => slug(w).toLowerCase().includes(k)) || state.world;
 }
 
 function applyResult(res, dir){
-  const parsed = parseResult(res);
-
-  switch(parsed.type){
+  const p = parseResult(res);
+  switch(p.type){
     case "finish":
-      toast("FIN DEL JUEGO ✨", 1000);
-      setTimeout(()=>{ state.world = "El Bosque de los Susurros"; restartWorld(); }, 900);
+      toast("FIN DEL JUEGO ✨", 900);
+      setTimeout(()=>{ state.world="El Bosque de los Susurros"; restartWorld(); }, 800);
       break;
-
-    case "pass":{
-      const nextW = canonicalWorldName(parsed.to);
-      state.world = nextW;
+    case "pass":
+      state.world = canonicalWorldName(p.to);
       rebuildOrderForWorld(state.world);
       setWorldBackground(state.world);
       goToId(state.order[0]);
       break;
-    }
-
     case "restart":
       restartWorld(); break;
-
     case "goto":
-      goToId(parsed.id); break;
-
+      goToId(p.id); break;
     default:
       toast("…", 500);
   }
 }
 
-/* ============ SWIPE ============ */
+/* ========= SWIPE ========= */
 function enableSwipe(el, cb){
   let startX=0, startY=0, dx=0, dy=0, active=false;
-
-  const onDown = (e)=>{
-    active = true;
-    const p = point(e);
-    startX = p.x; startY = p.y; dx=0; dy=0;
-    el.setPointerCapture?.(e.pointerId);
-  };
-  const onMove = (e)=>{
-    if(!active) return;
-    const p = point(e);
-    dx = p.x-startX; dy = p.y-startY;
-    el.style.transform = `translate3d(${dx}px, ${dy*0.2}px, 0) rotate(${dx*0.05}deg)`;
-    el.style.opacity = String(Math.max(0.35, 1 - Math.abs(dx)/500));
-  };
-  const onUp = ()=>{
-    if(!active) return;
-    active=false;
-    const thresh = 60;
-    if (dx < -thresh) cb("left");
-    else if (dx > thresh) cb("right");
-    el.style.transition = "transform .18s ease, opacity .18s ease";
-    el.style.transform = "translate3d(0,0,0) rotate(0)";
-    el.style.opacity = "1";
-    setTimeout(()=> el.style.transition = "", 200);
-  };
-
+  const onDown = (e)=>{ active=true; const p=point(e); startX=p.x; startY=p.y; dx=dy=0; el.setPointerCapture?.(e.pointerId); };
+  const onMove = (e)=>{ if(!active) return; const p=point(e); dx=p.x-startX; dy=p.y-startY;
+    el.style.transform = `translate3d(${dx}px, ${dy*0.2}px, 0) rotate(${dx*0.05}deg)`; el.style.opacity = String(Math.max(.35,1-Math.abs(dx)/500)); };
+  const onUp = ()=>{ if(!active) return; active=false; const th=60; if (dx<-th) cb("left"); else if(dx>th) cb("right");
+    el.style.transition="transform .18s ease, opacity .18s ease"; el.style.transform="translate3d(0,0,0) rotate(0)"; el.style.opacity="1"; setTimeout(()=> el.style.transition="", 200); };
   el.addEventListener("pointerdown", onDown);
   window.addEventListener("pointermove", onMove);
   window.addEventListener("pointerup", onUp);
   window.addEventListener("pointercancel", onUp);
 }
-function point(e){ return {x:e.clientX ?? (e.touches?.[0]?.clientX||0), y:e.clientY ?? (e.touches?.[0]?.clientY||0)}; }
+function point(e){ return {x: e.clientX ?? (e.touches?.[0]?.clientX||0), y: e.clientY ?? (e.touches?.[0]?.clientY||0)}; }
 
-/* ============ MISC ============ */
-function el(tag, cls){ const n = document.createElement(tag); if (cls) n.className = cls; return n; }
-function toast(msg, ms=1400){
-  const t = document.getElementById("toast");
-  t.textContent = msg; t.classList.add("show");
-  clearTimeout(t._h); t._h = setTimeout(()=> t.classList.remove("show"), ms);
-}
-window.addEventListener("keydown",(e)=>{
-  const cur = state.map[state.order[state.index]]; if(!cur) return;
-  if(e.key==="ArrowLeft"){ applyResult(cur.resL||"", "left"); }
-  if(e.key==="ArrowRight"){ applyResult(cur.resR||"", "right"); }
-  if(e.key.toLowerCase()==="r"){ restartWorld(); }
+/* ========= MISC ========= */
+function el(tag,cls){ const n=document.createElement(tag); if(cls) n.className=cls; return n; }
+function toast(msg,ms=1400){ const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),ms); }
+window.addEventListener("keydown",(e)=>{ const cur=state.map[state.order[state.index]]; if(!cur) return;
+  if(e.key==="ArrowLeft")  applyResult(cur.resL||"","left");
+  if(e.key==="ArrowRight") applyResult(cur.resR||"","right");
+  if(e.key.toLowerCase()==="r") restartWorld();
 });
 
-/* ============ START ============ */
+/* ========= START ========= */
 boot().catch(err=>{ console.error(err); toast("Error cargando datos"); });
 </script>
 </body>
