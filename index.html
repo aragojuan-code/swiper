@@ -198,10 +198,6 @@ function renderCard(card){
   const text = el("div","text"); text.textContent = card.texto || "";
 
   const hint = el("div","hint"); hint.textContent = "Desliza ← / →";
-const chL = el("div","choice choice-left");
-chL.innerHTML = `<span class="arr">←</span><span class="opt">${card.optL || labelFromResult(card.resL,"Izquierda")}</span>`;
-const chR = el("div","choice choice-right");
-chR.innerHTML = `<span class="opt">${card.optR || labelFromResult(card.resR,"Derecha")}</span><span class="arr">→</span>`;
 
   // Decisiones solo texto
   const choices = el("div","choices");
