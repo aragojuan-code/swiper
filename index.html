@@ -12,7 +12,7 @@
     --shadow:rgba(0,0,0,.5);
     --card-w:min(92vw,520px); --ratio:1.25; --card-h:calc(var(--card-w)*var(--ratio));
     --radius:16px;
-    --choices-h:72px; /* altura del bloque de decisiones */
+    --choices-h:64px; /* altura del bloque de decisiones */
   }
   *{box-sizing:border-box}
   html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial}
@@ -40,18 +40,16 @@
     background:linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0));
   }
 
-  /* Decisiones (no clicables) */
+  /* Decisiones SOLO texto (no clicables ni cajas) */
   .choices{
-    position:absolute;left:10px;right:10px;bottom:10px;height:var(--choices-h);
-    display:flex;gap:10px;align-items:stretch;pointer-events:none; /* NO interactivas */
+    position:absolute;left:14px;right:14px;bottom:10px;height:var(--choices-h);
+    display:flex;gap:16px;align-items:center;justify-content:space-between;pointer-events:none;
   }
   .choice{
-    flex:1;border:1px solid rgba(255,255,255,.08);border-radius:12px;background:rgba(255,255,255,.06);
-    backdrop-filter:blur(4px);padding:10px 12px;
-    display:flex;flex-direction:column;justify-content:center;
+    flex:1;display:flex;align-items:baseline;gap:8px;min-width:0;
   }
-  .choice .opt{font-weight:700;font-size:15px}
-  .choice .arr{opacity:.85;font-size:13px;margin-top:2px}
+  .choice .arr{opacity:.85;font-size:16px;flex:0 0 auto}
+  .choice .opt{font-weight:700;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
   .hint{position:absolute;top:8px;left:8px;font-size:11px;color:#c9d5e7;background:rgba(0,0,0,.35);padding:6px 8px;border-radius:10px}
   .toast{
@@ -92,9 +90,8 @@ const URL_IMAGES  = `${DATA_BASE}/images.json`;
 const URL_WORLDS  = `${DATA_BASE}/worlds.json`;
 
 /* ========= UTILS ========= */
-const norm = s => String(s||"");
+const slug = s => String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim();
 const byId = (arr, key="id") => Object.fromEntries(arr.map(o => [o[key], o]));
-const slug = s => String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/\s+/g," ").trim();
 
 /* ========= STATE ========= */
 const state = { cards:[], map:{}, images:[], worlds:{}, world:"", order:[], index:0 };
@@ -123,16 +120,17 @@ async function boot(){
 }
 
 function normalizeCard(o){
+  // acepta tus nombres de clave: opcion_izquierda / resultado_izquierda / ...
   const pick = (obj, keys) => keys.find(k=>k in obj) && obj[keys.find(k=>k in obj)];
   return {
     mundo:   pick(o,["Mundo","mundo"]) || "",
     id:      String(pick(o,["ID / Nombre","id","ID","Nombre"])||""),
     tipo:   (pick(o,["Tipo","tipo"]) || "decision").toLowerCase(),
     texto:   pick(o,["Texto (breve)","texto"]) || "",
-    optL:    pick(o,["Opción ← (izquierda)","optL"]) || "",
-    resL:    pick(o,["Resultado ←","resL"]) || "",
-    optR:    pick(o,["Opción → (derecha)","optR"]) || "",
-    resR:    pick(o,["Resultado →","resR"]) || "",
+    optL:    pick(o,["Opción ← (izquierda)","optL","opcion_izquierda"]) || "",
+    resL:    pick(o,["Resultado ←","resL","resultado_izquierda"]) || "",
+    optR:    pick(o,["Opción → (derecha)","optR","opcion_derecha"]) || "",
+    resR:    pick(o,["Resultado →","resR","resultado_derecha"]) || "",
     image_file: o.image_file || o.imageFilename || null,
   };
 }
@@ -170,9 +168,10 @@ function imageUrlFor(card){
       const fname = (x.filename||x.file||"").toLowerCase().replace(/[^\w]+/g,"");
       return fname.includes(idKey);
     });
+    // PRIORIDAD al filename (tu image_url tiene el dominio mal escrito)
+    if (hit?.filename)  return `${IMG_BASE}/${hit.filename}`;
     if (hit?.image_url) return hit.image_url;
     if (hit?.url)       return hit.url;
-    if (hit?.filename)  return `${IMG_BASE}/${hit.filename}`;
   }
   const fname = `${slug(card.mundo).toLowerCase().replace(/[^\w]+/g,"_")}_${slug(card.id).toLowerCase().replace(/[^\w]+/g,"_")}.png`;
   return `${IMG_BASE}/${fname}`;
@@ -189,12 +188,12 @@ function renderCard(card){
 
   const hint = el("div","hint"); hint.textContent = "Desliza ← / →";
 
-  // Decisiones solo como texto (no clicables)
+  // Decisiones solo texto
   const choices = el("div","choices");
   const chL = el("div","choice");
-  chL.innerHTML = `<span class="opt">${card.optL || labelFromResult(card.resL,"Izquierda")}</span><span class="arr">←</span>`;
+  chL.innerHTML = `<span class="arr">←</span><span class="opt">${card.optL || labelFromResult(card.resL,"Izquierda")}</span>`;
   const chR = el("div","choice");
-  chR.innerHTML = `<span class="opt">${card.optR || labelFromResult(card.resR,"Derecha")}</span><span class="arr">→</span>`;
+  chR.innerHTML = `<span class="arr">→</span><span class="opt">${card.optR || labelFromResult(card.resR,"Derecha")}</span>`;
   choices.append(chL,chR);
 
   wrap.append(img, fade, text, choices, hint);
@@ -252,7 +251,7 @@ function restartWorld(){
   goToId(state.order[0]);
 }
 
-/* Captura únicamente el primer token [A-Za-z0-9_] después de →/LOOP  (ignora emojis, paréntesis, textos extra) */
+/* Captura solo el primer token [A-Za-z0-9_] tras →/LOOP (ignora emojis, paréntesis, textos extra) */
 function parseResult(s){
   const clean = slug(s||"");
 
@@ -278,7 +277,6 @@ function normalizeShortId(token){
   const t = String(token||"").toLowerCase();
   if (t.startsWith("carta_")) return token;
   const keys = Object.keys(state.map);
-  // busca por sufijo o coincidencia dentro del id
   const hit = keys.find(k=>{
     const kk = k.toLowerCase();
     return kk.endsWith(`_${t}`) || kk.includes(`_${t}_`) || kk===t;
@@ -336,7 +334,8 @@ function point(e){ return {x: e.clientX ?? (e.touches?.[0]?.clientX||0), y: e.cl
 /* ========= MISC ========= */
 function el(tag,cls){ const n=document.createElement(tag); if(cls) n.className=cls; return n; }
 function toast(msg,ms=1400){ const t=document.getElementById("toast"); t.textContent=msg; t.classList.add("show"); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove("show"),ms); }
-window.addEventListener("keydown",(e)=>{ const cur=state.map[state.order[state.index]]; if(!cur) return;
+window.addEventListener("keydown",(e)=>{
+  const cur=state.map[state.order[state.index]]; if(!cur) return;
   if(e.key==="ArrowLeft")  applyResult(cur.resL||"","left");
   if(e.key==="ArrowRight") applyResult(cur.resR||"","right");
   if(e.key.toLowerCase()==="r") restartWorld();
