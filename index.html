@@ -381,36 +381,51 @@ function parseResult(s){
 
 
 function normalizeShortId(token){
-  const preferWorld = state.world;
-  let t = String(token||"").trim().toLowerCase();
-  if (!t) return token;
+  const t0 = String(token||"").trim();
+  if (!t0) return token;
 
-  // si ya viene con prefijo tipo "carta_6b", déjalo
-  if (t.startsWith("carta_")) return token;
-
-  // homogeneiza: guiones a guion_bajo
-  t = t.replace(/-/g, "_");
-
+  // token normalizado: minúsculas, guiones -> '_'
+  const t = t0.toLowerCase().replace(/-/g, "_");
   const keys = Object.keys(state.map);
+  const world = state.world;
 
-  const score = (id)=>{
+  // calculamos puntuación de match
+  const scoreOf = (id)=>{
     const kk = id.toLowerCase();
+    const card = state.map[id];
     let s = 0;
-    if (kk === t) s += 120;                    // match exacto
-    if (kk.endsWith(`_${t}`)) s += 80;         // sufijo claro
-    if (kk.includes(`_${t}_`)) s += 60;        // segmento en medio
-    if (kk.startsWith(`${t}_`)) s += 50;       // prefijo claro
-    if (kk.includes(t)) s += 20;               // contiene
-    if (state.map[id]?.mundo === preferWorld) s += 15; // prioriza mundo actual
+
+    if (kk === t) s += 200;                       // match exacto
+    if (kk.endsWith(`_${t}`)) s += 140;           // sufijo claro (…_6b)
+    if (kk.startsWith(`${t}_`)) s += 110;         // prefijo (6b_…)
+    if (kk.includes(`_${t}_`)) s += 90;           // segmento _6b_
+    if (kk.includes(t)) s += 40;                  // contiene
+
+    // bonus si es del mismo mundo
+    if (card?.mundo === world) s += 60;
+
+    // penaliza cartas de transición (a menos que sea match EXACTO)
+    if (card?.tipo === "transition" && kk !== t) s -= 50;
+
     return s;
   };
 
-  const best = keys
-    .map(id => [score(id), id])
+  // 1) Intentar SOLO en el mismo mundo
+  const sameWorld = keys.filter(id => state.map[id]?.mundo === world);
+  const bestLocal = sameWorld
+    .map(id => [scoreOf(id), id])
     .sort((a,b)=> b[0]-a[0])[0];
 
-  return (best && best[0] > 0) ? best[1] : token;
+  if (bestLocal && bestLocal[0] > 0) return bestLocal[1];
+
+  // 2) Si no hay nada en el mismo mundo, abrimos a todos
+  const bestGlobal = keys
+    .map(id => [scoreOf(id), id])
+    .sort((a,b)=> b[0]-a[0])[0];
+
+  return (bestGlobal && bestGlobal[0] > 0) ? bestGlobal[1] : token;
 }
+
 
 
 
