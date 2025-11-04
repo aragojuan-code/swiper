@@ -9,47 +9,45 @@
 <style>
   :root{
     --bg:#0b0f14; --panel:#101722; --ink:#e6eef7; --muted:#9fb3c9; --accent:#6ab0ff;
-    --ok:#4ade80; --warn:#fbbf24; --bad:#fb7185; --shadow:rgba(0,0,0,.5);
-    --card-w: min(92vw, 520px); --ratio: 1.25; /* 4:5 => alto = 1.25 * ancho */
+    --shadow:rgba(0,0,0,.5);
+    --card-w: min(92vw, 520px); --ratio: 1.25; /* 4:5 */
     --card-h: calc(var(--card-w) * var(--ratio));
     --radius: 16px;
   }
   *{box-sizing:border-box}
   html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial}
-  a{text-decoration:none;color:inherit}
   .wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;gap:16px;padding:18px;position:relative;z-index:1}
   header{width:100%;max-width:720px;display:flex;align-items:center;justify-content:space-between;gap:12px}
-  .crumbs{display:none} /* ocultar 1/17 */
+  .crumbs{display:none} /* oculta 1/17 */
   .board{position:relative;width:var(--card-w);height:var(--card-h)}
   .card{
     position:absolute; inset:0; border-radius:var(--radius);
     background:#0e1520; box-shadow:0 10px 30px var(--shadow), inset 0 0 0 1px rgba(255,255,255,.06);
     overflow:hidden; touch-action:none; user-select:none;
   }
-  /* Imagen como capa de fondo */
   .card img{
     position:absolute; inset:0; width:100%; height:100%;
     object-fit:cover; object-position:center 42%; /* baja un pelín el encuadre */
     display:block; filter:contrast(1) saturate(.95) brightness(.95);
   }
   .fade{position:absolute;inset:0;background:linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,.05) 60%);pointer-events:none}
-  /* Texto visible por encima de la imagen */
   .text{
-    position:absolute; left:0; right:0; bottom:70px;  /* deja sitio a la botonera */
+    position:absolute; left:0; right:0; bottom:88px;
     padding:12px 14px; font-size:14px; line-height:1.35; color:#dfe8f5;
     background:linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,.0));
   }
-  /* Botonera fija al borde inferior */
   .choices{
     position:absolute; left:10px; right:10px; bottom:10px;
     display:flex; gap:10px; justify-content:space-between;
   }
   .btn{
-    flex:1; padding:12px 10px; border-radius:12px; border:1px solid rgba(255,255,255,.08);
-    background:rgba(255,255,255,.04); color:#e6eef7; font-weight:600; font-size:16px;
-    backdrop-filter: blur(4px); cursor:pointer;
+    flex:1; padding:10px 12px; border-radius:12px; border:1px solid rgba(255,255,255,.08);
+    background:rgba(255,255,255,.04); color:#e6eef7; font-weight:600; font-size:15px;
+    backdrop-filter: blur(4px); cursor:pointer; text-align:left;
   }
-  .btn:active{transform:translateY(1px);opacity:.9}
+  .btn .opt{display:block;font-weight:600}
+  .btn .arr{display:block;opacity:.8;font-size:13px;margin-top:2px}
+  .btn:active{transform:translateY(1px);opacity:.92}
   .hint{position:absolute;top:8px;font-size:11px;color:#c9d5e7;background:rgba(0,0,0,.35);padding:6px 8px;border-radius:10px;left:8px}
   .toast{
     position:fixed;left:50%;transform:translateX(-50%);
@@ -60,31 +58,17 @@
   .toast.show{opacity:1;transition:opacity .25s}
   .pill{font-size:11px;color:#9fb3c9;padding:4px 8px;border:1px solid rgba(255,255,255,.08);border-radius:999px}
   .topbar{display:flex;align-items:center;gap:10px}
-  .ghost{opacity:.7}
-  .kb{display:none} /* oculto leyenda de teclado en móvil/desktop */
+  .kb{display:none}
 
-  /* Vídeo de fondo */
-  .bg{
-    position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none;
-  }
-  .bg video{
-    position:absolute; width:100%; height:100%;
-    object-fit:cover; filter:brightness(.9) saturate(.95) contrast(1);
-  }
-  .bg::after{
-    content:""; position:absolute; inset:0;
-    background:radial-gradient(ellipse at 50% 110%, rgba(0,0,0,.55), rgba(0,0,0,.15) 50%, rgba(0,0,0,.05) 70%);
-  }
-
-  /* Capa para asegurar contraste del contenido */
+  .bg{position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none;}
+  .bg video{position:absolute; width:100%; height:100%; object-fit:cover; filter:brightness(.9) saturate(.95) contrast(1);}
+  .bg::after{content:""; position:absolute; inset:0;
+    background:radial-gradient(ellipse at 50% 110%, rgba(0,0,0,.55), rgba(0,0,0,.15) 50%, rgba(0,0,0,.05) 70%);}
   .veil{position:fixed;inset:0;background:linear-gradient(to bottom, rgba(5,8,12,.4), rgba(5,8,12,.25));z-index:0}
 </style>
 </head>
 <body>
-<!-- Vídeo de fondo -->
-<div class="bg">
-  <video id="bgvid" playsinline muted loop autoplay poster=""></video>
-</div>
+<div class="bg"><video id="bgvid" playsinline muted loop autoplay></video></div>
 <div class="veil"></div>
 
 <div class="wrap">
@@ -97,56 +81,36 @@
   </header>
 
   <div class="board" id="board"></div>
-
   <div class="toast" id="toast"></div>
 </div>
 
 <script>
-/* =============================
-   CONFIG (Supabase public URLs)
-============================= */
-const PROJECT_REF = "rdoivmucgucouauyqdos";  // tu id de proyecto
+/* ============ CONFIG (Supabase public URLs) ============ */
+const PROJECT_REF = "rdoivmucgucouauyqdos";
 const DATA_BASE   = `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/data`;
-const IMG_BASE    = `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/swiper`;   // imágenes de cartas (bucket swiper)
-const WORLD_BASE  = `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/worlds`;  // por si quieres construir a mano
+const IMG_BASE    = `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/swiper`;
+const WORLD_BASE  = `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/worlds`;
 
 const URL_CARDS   = `${DATA_BASE}/cards.json`;
-const URL_IMAGES  = `${DATA_BASE}/images.json`;   // mapping opcional filename → url
+const URL_IMAGES  = `${DATA_BASE}/images.json`;
 const URL_WORLDS  = `${DATA_BASE}/worlds.json`;
 
-/* =============================
-   UTILS
-============================= */
+/* ============ UTILS ============ */
 const slug = s => String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"")
-  .replace(/[^a-zA-Z0-9]+/g,"_").replace(/^_+|_+$/g,"").toLowerCase();
+  .replace(/\s+/g," ").trim();
 
+const norm = s => slug(s).toLowerCase().replace(/[^\w]+/g,"");
 const byId = (arr, key="id") => Object.fromEntries(arr.map(o => [o[key], o]));
 
-/* =============================
-   STATE
-============================= */
-const state = {
-  cards: [],          // todas las cartas
-  map: {},            // id → carta
-  images: [],         // listado de {filename, url} (si existe)
-  worlds: {},         // nombre mundo → url mp4
-  world: "",          // mundo actual
-  order: [],          // ids navegables del mundo actual
-  index: 0            // posición actual
-};
+/* ============ STATE ============ */
+const state = { cards:[], map:{}, images:[], worlds:{}, world:"", order:[], index:0 };
 
-/* =============================
-   DATA LOADING
-============================= */
+/* ============ DATA LOADING ============ */
 async function loadJSON(url){
   const r = await fetch(url);
-  if(!r.ok){
-    const txt = await r.text().catch(()=> "");
-    throw new Error(`No pude cargar ${url} (HTTP ${r.status}) ${txt?.slice(0,200)}`);
-  }
-  const contentType = r.headers.get("content-type")||"";
-  if(contentType.includes("application/json")) return r.json();
-  const tx = await r.text(); return JSON.parse(tx);
+  if(!r.ok){ throw new Error(`No pude cargar ${url} (HTTP ${r.status})`); }
+  const ct = r.headers.get("content-type")||"";
+  return ct.includes("application/json") ? r.json() : JSON.parse(await r.text());
 }
 
 async function boot(){
@@ -156,32 +120,41 @@ async function boot(){
     loadJSON(URL_WORLDS).catch(()=> ({}))
   ]);
 
-  state.cards = (Array.isArray(cards) ? cards : cards.data || []).map(normalizeCard);
+  const src = Array.isArray(cards) ? cards : cards.data || [];
+  state.cards = src.map(fuzzyNormalizeCard);
   state.map   = byId(state.cards);
   state.images = Array.isArray(images) ? images : (images.data||[]);
   state.worlds = worlds || {};
 
-  // Mundo inicial
   state.world = state.cards[0]?.mundo || "El Bosque de los Susurros";
   rebuildOrderForWorld(state.world);
   setWorldBackground(state.world);
-
-  // Render primero
   goToId(state.order[0]);
 }
 
-function normalizeCard(o){
+/* ===== robustez: detecta columnas aunque cambie el texto/espacios/flechas ===== */
+function fuzzyPick(obj, want){
+  // want: ['opcion','izquierda']  -> busca clave cuyo norm contiene todos
+  const keys = Object.keys(obj);
+  const w = want.map(x=>norm(x));
+  for(const k of keys){
+    const nk = norm(k);
+    if (w.every(x=> nk.includes(x))) return obj[k];
+  }
+  return undefined;
+}
+
+function fuzzyNormalizeCard(o){
   return {
-    mundo:   o.Mundo || o.mundo,
-    id:      (o["ID / Nombre"] || o.id || o.ID || o.Nombre || "").toString(),
-    tipo:    (o.Tipo || o.tipo || "decision").toLowerCase(),
-    texto:   o["Texto (breve)"] || o.texto || "",
-    optL:    o["Opción ← (izquierda)"] || o.optL || "",
-    resL:    o["Resultado ←"] || o.resL || "",
-    optR:    o["Opción → (derecha)"] || o.optR || "",
-    resR:    o["Resultado →"] || o.resR || "",
+    mundo:   fuzzyPick(o,["mundo"]) ?? o.mundo ?? o.Mundo ?? "",
+    id:      String(fuzzyPick(o,["id","nombre"]) ?? o.id ?? o.ID ?? o.Nombre ?? ""),
+    tipo:   (fuzzyPick(o,["tipo"]) ?? o.tipo ?? o.Tipo ?? "decision").toLowerCase(),
+    texto:   fuzzyPick(o,["texto"]) ?? o.texto ?? o["Texto (breve)"] ?? "",
+    optL:    fuzzyPick(o,["opcion","izquierda"]) ?? o.optL ?? "",
+    resL:    fuzzyPick(o,["resultado","izquierda"]) ?? o.resL ?? "",
+    optR:    fuzzyPick(o,["opcion","derecha"]) ?? o.optR ?? "",
+    resR:    fuzzyPick(o,["resultado","derecha"]) ?? o.resR ?? "",
     image_file: o.image_file || o.imageFilename || null,
-    prompt:  o["Prompt completo"] || o.prompt || ""
   };
 }
 
@@ -192,25 +165,17 @@ function rebuildOrderForWorld(worldName){
   state.index = 0;
 }
 
-/* =============================
-   BACKGROUND VIDEO
-============================= */
+/* ============ BACKGROUND VIDEO ============ */
 function setWorldBackground(worldName){
   const vid = document.getElementById("bgvid");
   const url = state.worlds[worldName] || guessWorldUrl(worldName);
   if(!url) return;
-  if (vid.src !== url) {
-    vid.src = url;
-    vid.play?.().catch(()=>{});
-  }
+  if (vid.src !== url) { vid.src = url; vid.play?.().catch(()=>{}); }
 }
-document.addEventListener("touchend", ()=>{
-  const v = document.getElementById("bgvid");
-  v?.play?.().catch(()=>{});
-},{once:true});
+document.addEventListener("touchend", ()=>{ document.getElementById("bgvid")?.play?.().catch(()=>{}); }, {once:true});
 
 function guessWorldUrl(worldName){
-  const k = slug(worldName);
+  const k = norm(worldName);
   if (k.includes("bosque"))   return `${WORLD_BASE}/bosque_bg.mp4`;
   if (k.includes("castillo")) return `${WORLD_BASE}/castillo_bg.mp4`;
   if (k.includes("monstruo")) return `${WORLD_BASE}/monstruo_bg.mp4`;
@@ -218,22 +183,29 @@ function guessWorldUrl(worldName){
   return "";
 }
 
-/* =============================
-   RENDER CARD
-============================= */
+/* ============ RENDER ============ */
 function imageUrlFor(card){
   if (card.image_file) return `${IMG_BASE}/${card.image_file}`;
-  const idSlug = slug(card.id);
+  const idSlug = norm(card.id);
   if (Array.isArray(state.images) && state.images.length){
     const hit = state.images.find(x=>{
       const fname = (x.filename||x.file||"").toLowerCase();
-      return fname.includes(idSlug);
+      return fname.replace(/[^\w]+/g,"").includes(idSlug);
     });
     if (hit?.url) return hit.url;
     if (hit?.filename) return `${IMG_BASE}/${hit.filename}`;
   }
-  const fname = `${slug(card.mundo)}_${idSlug}.png`;
+  const fname = `${norm(card.mundo)}_${idSlug}.png`;
   return `${IMG_BASE}/${fname}`;
+}
+
+function labelFromResult(res, fallback){
+  const p = parseResult(res);
+  if (p.type==="finish")  return "Finalizar";
+  if (p.type==="restart") return "Reiniciar";
+  if (p.type==="pass")    return "Pasar de mundo";
+  if (p.type==="goto")    return "Avanzar";
+  return fallback;
 }
 
 function renderCard(card){
@@ -241,20 +213,17 @@ function renderCard(card){
   board.innerHTML = "";
 
   const wrap = el("div","card");
-  const img = el("img");
-  img.src = imageUrlFor(card);
-  img.alt = ""; // no mostrar id/slug
+  const img = el("img"); img.src = imageUrlFor(card); img.alt = "";
   const fade = el("div","fade");
+  const text = el("div","text"); text.textContent = card.texto || "";
 
-  const text = el("div","text");
-  text.textContent = card.texto || "";
-
-  const hint = el("div","hint");
-  hint.textContent = "Desliza ← / →";
+  const hint = el("div","hint"); hint.textContent = "Desliza ← / →";
 
   const choices = el("div","choices");
-  const bL = el("button","btn"); bL.textContent = "←";
-  const bR = el("button","btn"); bR.textContent = "→";
+  const bL = el("button","btn");
+  const bR = el("button","btn");
+  bL.innerHTML = `<span class="opt">${card.optL || labelFromResult(card.resL,"Izquierda")}</span><span class="arr">←</span>`;
+  bR.innerHTML = `<span class="opt">${card.optR || labelFromResult(card.resR,"Derecha")}</span><span class="arr">→</span>`;
   bL.onclick = ()=> applyResult(card.resL || "", "left");
   bR.onclick = ()=> applyResult(card.resR || "", "right");
 
@@ -267,9 +236,9 @@ function renderCard(card){
     if (dir==="right") applyResult(card.resR || "", "right");
   });
 
-  setTopBar();
+  document.getElementById("worldTag").textContent = state.world;
 
-  // Si es transición, auto-ejecuta el resultado en 700 ms
+  // auto-transiciones
   if (card.tipo === "transition"){
     setTimeout(()=>{
       const next = pickAutoResult(card);
@@ -279,39 +248,26 @@ function renderCard(card){
 }
 
 function pickAutoResult(card){
-  // preferimos reiniciar/pass/goto en este orden
   const cands = [card.resL, card.resR].filter(Boolean);
   for (const r of cands){
     const p = parseResult(r);
-    if (p.type==="restart") return {cmd:r, dir:"right"};
-    if (p.type==="pass")    return {cmd:r, dir:"right"};
-    if (p.type==="goto")    return {cmd:r, dir:"right"};
-    if (p.type==="finish")  return {cmd:r, dir:"right"};
+    if (p.type==="restart" || p.type==="pass" || p.type==="goto" || p.type==="finish")
+      return {cmd:r, dir:"right"};
   }
-  // si nada claro, reinicia mundo actual
   return {cmd:"REINICIA → 1", dir:"right"};
 }
 
-function setTopBar(){
-  document.getElementById("worldTag").textContent = state.world;
-}
-
-/* =============================
-   NAVIGATION / PARSING
-============================= */
+/* ============ NAV / PARSER ============ */
 function goToId(id){
   const card = state.map[id];
   if(!card){ toast(`No encuentro la carta "${id}"`); return; }
-
   if (card.mundo !== state.world){
     state.world = card.mundo;
     rebuildOrderForWorld(state.world);
     setWorldBackground(state.world);
-    state.index = state.order.indexOf(card.id);
-  } else {
-    state.index = state.order.indexOf(card.id);
-    if (state.index < 0){ state.order.push(card.id); state.index = state.order.length-1; }
   }
+  state.index = state.order.indexOf(card.id);
+  if (state.index < 0){ state.order.push(card.id); state.index = state.order.length-1; }
   renderCard(card);
 }
 
@@ -322,49 +278,50 @@ function restartWorld(){
 }
 
 function parseResult(s){
-  const clean = String(s||"").trim();
+  const clean = slug(s||"");
   if (!clean) return {type:"noop"};
 
-  // FIN
+  // FIN DEL JUEGO
   if (/fin\s*del\s*juego/i.test(clean)) return {type:"finish"};
 
-  // PASS → CASTILLO / PASS → MUNDO 3 / PASS → PRINCESA
-  const pass = clean.match(/pass\s*[:\-–]*\s*→\s*([^\s]+)/i);
-  if (pass) return {type:"pass", to: pass[1]};
-
-  // REINICIA → 1 / REINICIA → MUNDO 1
+  // REINICIA (con o sin flecha/numero)
   if (/reinicia/i.test(clean)) return {type:"restart"};
 
-  // LOOP → 2A / LOOP a 1 / LOOP a 2B
-  const loop = clean.match(/loop\s*(?:→|a)\s*([^\s]+)/i);
-  if (loop) return {type:"goto", id: normalizeShortId(loop[1])};
+  // PASS → CASTILLO / PASS → MUNDO 4
+  let m = clean.match(/pass.*?→\s*(.+)$/i);
+  if (m) return {type:"pass", to: m[1].trim()};
 
-  // → 3B / → 3A_end_eco / → carta_...
-  const goto = clean.match(/→\s*([^\s]+)/);
-  if (goto) return {type:"goto", id: normalizeShortId(goto[1])};
+  // LOOP → 2A / LOOP a 1
+  m = clean.match(/loop\s*(?:→|a)\s*(.+)$/i);
+  if (m) return {type:"goto", id: normalizeShortId(m[1].trim())};
+
+  // → 3B / → carta_3A_end
+  m = clean.match(/→\s*(.+)$/);
+  if (m) return {type:"goto", id: normalizeShortId(m[1].trim())};
 
   return {type:"noop"};
 }
 
 function normalizeShortId(token){
-  const t = token.toLowerCase();
-  if (t.startsWith("carta_")) return token;
-  // números/etiquetas cortas (1, 2a, 3b_end_x)
-  const hit = Object.keys(state.map).find(k => {
+  const t = token.trim();
+  if (/^carta_/i.test(t)) return t;
+  const low = t.toLowerCase();
+  // busca sufijos/contiene: "_3b", "_3b_end", "3b_end"
+  const hit = Object.keys(state.map).find(k=>{
     const kk = k.toLowerCase();
-    return kk.endsWith(`_${t}`) || kk.includes(`_${t}_`) || kk === t;
+    return kk.endsWith(`_${low}`) || kk.includes(`_${low}_`) || kk===low;
   });
-  return hit || token;
+  return hit || t;
 }
 
 function canonicalWorldName(token){
-  const t = slug(token);
-  if (t.includes("castillo")) return "El Castillo de los Espejos";
-  if (t.includes("monstruo")) return "El Monstruo Final";
-  if (t.includes("princesa")) return "La Princesa Durmiente";
-  if (t.includes("bosque") || t.includes("mundo_1") || t==="1") return "El Bosque de los Susurros";
+  const k = norm(token);
+  if (k.includes("castillo")) return "El Castillo de los Espejos";
+  if (k.includes("monstruo")) return "El Monstruo Final";
+  if (k.includes("princesa")) return "La Princesa Durmiente";
+  if (k.includes("bosque") || k.includes("mundo1") || k==="1") return "El Bosque de los Susurros";
   const worlds = [...new Set(state.cards.map(c=>c.mundo))];
-  return worlds.find(w => slug(w).includes(t)) || state.world;
+  return worlds.find(w => norm(w).includes(k)) || state.world;
 }
 
 function applyResult(res, dir){
@@ -372,9 +329,8 @@ function applyResult(res, dir){
 
   switch(parsed.type){
     case "finish":
-      toast("FIN DEL JUEGO ✨", 1200);
-      // volver al principio del mundo 1 si quieres:
-      setTimeout(()=> { state.world = "El Bosque de los Susurros"; rebuildOrderForWorld(state.world); setWorldBackground(state.world); goToId(state.order[0]); }, 1000);
+      toast("FIN DEL JUEGO ✨", 1000);
+      setTimeout(()=>{ state.world = "El Bosque de los Susurros"; restartWorld(); }, 900);
       break;
 
     case "pass":{
@@ -387,22 +343,17 @@ function applyResult(res, dir){
     }
 
     case "restart":
-      restartWorld();
-      break;
+      restartWorld(); break;
 
     case "goto":
-      goToId(parsed.id);
-      break;
+      goToId(parsed.id); break;
 
     default:
-      // si una carta decision no trae resultado, no hacemos nada especial
       toast("…", 500);
   }
 }
 
-/* =============================
-   SWIPE HANDLER
-============================= */
+/* ============ SWIPE ============ */
 function enableSwipe(el, cb){
   let startX=0, startY=0, dx=0, dy=0, active=false;
 
@@ -436,41 +387,24 @@ function enableSwipe(el, cb){
   window.addEventListener("pointerup", onUp);
   window.addEventListener("pointercancel", onUp);
 }
-
 function point(e){ return {x:e.clientX ?? (e.touches?.[0]?.clientX||0), y:e.clientY ?? (e.touches?.[0]?.clientY||0)}; }
 
-/* =============================
-   MISC
-============================= */
-function el(tag, cls){
-  const n = document.createElement(tag);
-  if (cls) n.className = cls;
-  return n;
-}
-
+/* ============ MISC ============ */
+function el(tag, cls){ const n = document.createElement(tag); if (cls) n.className = cls; return n; }
 function toast(msg, ms=1400){
   const t = document.getElementById("toast");
-  t.textContent = msg;
-  t.classList.add("show");
-  clearTimeout(t._h);
-  t._h = setTimeout(()=> t.classList.remove("show"), ms);
+  t.textContent = msg; t.classList.add("show");
+  clearTimeout(t._h); t._h = setTimeout(()=> t.classList.remove("show"), ms);
 }
-
 window.addEventListener("keydown",(e)=>{
-  const cur = state.map[state.order[state.index]];
-  if(!cur) return;
+  const cur = state.map[state.order[state.index]]; if(!cur) return;
   if(e.key==="ArrowLeft"){ applyResult(cur.resL||"", "left"); }
   if(e.key==="ArrowRight"){ applyResult(cur.resR||"", "right"); }
   if(e.key.toLowerCase()==="r"){ restartWorld(); }
 });
 
-/* =============================
-   START
-============================= */
-boot().catch(err=>{
-  console.error(err);
-  toast("Error cargando datos");
-});
+/* ============ START ============ */
+boot().catch(err=>{ console.error(err); toast("Error cargando datos"); });
 </script>
 </body>
 </html>
