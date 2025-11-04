@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"/>
 <title>Swiper – Historia de 4 mundos</title>
 <meta name="theme-color" content="#0b0f14"/>
+<link rel="icon" href="data:,">
 <style>
   :root{
     --bg:#0b0f14; --panel:#101722; --ink:#e6eef7; --muted:#9fb3c9; --accent:#6ab0ff;
@@ -22,19 +23,26 @@
   .crumbs{font-size:12px;color:var(--muted)}
   .board{position:relative;width:var(--card-w);height:var(--card-h)}
   .card{
-    position:absolute;inset:0;border-radius:var(--radius);
+    position:absolute; inset:0; border-radius:var(--radius);
     background:#0e1520; box-shadow:0 10px 30px var(--shadow), inset 0 0 0 1px rgba(255,255,255,.06);
     overflow:hidden; touch-action:none; user-select:none;
-    display:grid; grid-template-rows:1fr auto;
   }
-  .card img{width:100%;height:100%;object-fit:cover;display:block;filter:contrast(1) saturate(.95) brightness(.95)}
+  /* Imagen como capa de fondo */
+  .card img{
+    position:absolute; inset:0; width:100%; height:100%;
+    object-fit:cover; display:block; filter:contrast(1) saturate(.95) brightness(.95);
+  }
   .fade{position:absolute;inset:0;background:linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,.05) 60%);pointer-events:none}
+  /* Texto visible por encima de la imagen */
   .text{
+    position:absolute; left:0; right:0; bottom:70px;  /* deja sitio a la botonera */
     padding:12px 14px; font-size:14px; line-height:1.35; color:#dfe8f5;
     background:linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,.0));
   }
+  /* Botonera fija al borde inferior */
   .choices{
-    position:absolute; inset:auto 10px 10px; display:flex; gap:10px; justify-content:space-between;
+    position:absolute; left:10px; right:10px; bottom:10px;
+    display:flex; gap:10px; justify-content:space-between;
   }
   .btn{
     flex:1; padding:12px 10px; border-radius:12px; border:1px solid rgba(255,255,255,.08);
@@ -75,7 +83,7 @@
 <body>
 <!-- Vídeo de fondo -->
 <div class="bg">
-  <video id="bgvid" playsinline muted loop autoplay poster="" ></video>
+  <video id="bgvid" playsinline muted loop autoplay poster=""></video>
 </div>
 <div class="veil"></div>
 
@@ -132,7 +140,10 @@ const state = {
 ============================= */
 async function loadJSON(url){
   const r = await fetch(url);
-  if(!r.ok) throw new Error(`No pude cargar ${url}`);
+  if(!r.ok){
+    const txt = await r.text().catch(()=> "");
+    throw new Error(`No pude cargar ${url} (HTTP ${r.status}) ${txt?.slice(0,200)}`);
+  }
   const contentType = r.headers.get("content-type")||"";
   if(contentType.includes("application/json")) return r.json();
   const tx = await r.text(); return JSON.parse(tx);
@@ -143,7 +154,7 @@ async function boot(){
   const [cards, images, worlds] = await Promise.all([
     loadJSON(URL_CARDS),
     loadJSON(URL_IMAGES).catch(()=>[]), // por si no existe
-    loadJSON(URL_WORLDS)
+    loadJSON(URL_WORLDS).catch(()=> ({}))
   ]);
 
   state.cards  = Array.isArray(cards) ? cards : cards.data || [];
@@ -200,13 +211,16 @@ function setWorldBackground(worldName){
   if(!url) return;
 
   if (vid.src !== url) {
-    // opcional: poster estático mientras cambia
-    // vid.setAttribute("poster", "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==");
     vid.src = url;
-    // En iOS Low Power Mode puede requerir play tras interacción
-    vid.play?.().catch(()=>{/* ignorar */});
+    vid.play?.().catch(()=>{/* iOS Low Power puede bloquear hasta interacción */});
   }
 }
+
+// Reintentar play en iOS tras el primer toque
+document.addEventListener("touchend", ()=>{
+  const v = document.getElementById("bgvid");
+  v?.play?.().catch(()=>{});
+},{once:true});
 
 function guessWorldUrl(worldName){
   // fallback si no existe worlds.json
@@ -241,6 +255,15 @@ function imageUrlFor(card){
   return `${IMG_BASE}/${fname}`;
 }
 
+function labelFor(res, fallbackArrow){
+  const p = parseResult(res);
+  if(p.type==="finish")  return "FIN";
+  if(p.type==="restart") return "Reiniciar";
+  if(p.type==="pass")    return `Pasar`;
+  if(p.type==="goto")    return `Ir`;
+  return fallbackArrow; // "←" o "→"
+}
+
 function renderCard(card){
   const board = document.getElementById("board");
   board.innerHTML = "";
@@ -253,7 +276,8 @@ function renderCard(card){
   const fade = el("div","fade");
 
   const text = el("div","text");
-  text.innerHTML = `<div class="ghost" style="font-size:12px;margin-bottom:4px;">${card.id.replace(/_/g," · ")}</div>${card.texto}`;
+  const subtitle = card.id.replace(/_/g," · ");
+  text.innerHTML = `<div class="ghost" style="font-size:12px;margin-bottom:4px;">${subtitle}</div>${card.texto||""}`;
 
   const hint = el("div","hint");
   hint.textContent = "Desliza ← / →";
@@ -261,18 +285,18 @@ function renderCard(card){
   const choices = el("div","choices");
   const bL = el("button","btn");
   const bR = el("button","btn");
-  bL.textContent = card.optL || "←";
-  bR.textContent = card.optR || "→";
-  bL.onclick = ()=> applyResult(card.resL || "");
-  bR.onclick = ()=> applyResult(card.resR || "");
+  bL.textContent = card.optL || labelFor(card.resL, "←");
+  bR.textContent = card.optR || labelFor(card.resR, "→");
+  bL.onclick = ()=> applyResult(card.resL || "", "left");
+  bR.onclick = ()=> applyResult(card.resR || "", "right");
 
   choices.append(bL,bR);
   wrap.append(img, fade, text, choices, hint);
   board.append(wrap);
 
   enableSwipe(wrap, (dir)=> {
-    if (dir==="left") applyResult(card.resL || "");
-    if (dir==="right") applyResult(card.resR || "");
+    if (dir==="left")  applyResult(card.resL || "", "left");
+    if (dir==="right") applyResult(card.resR || "", "right");
   });
 
   setCrumbs();
@@ -362,7 +386,18 @@ function canonicalWorldName(token){
   return worlds.find(w => slug(w).includes(t)) || state.world;
 }
 
-function applyResult(res){
+function nextIdInWorld(){
+  const i = state.index;
+  const n = state.order.length;
+  return state.order[(i+1+n)%n];
+}
+function prevIdInWorld(){
+  const i = state.index;
+  const n = state.order.length;
+  return state.order[(i-1+n)%n];
+}
+
+function applyResult(res, dir){
   const parsed = parseResult(res);
 
   switch(parsed.type){
@@ -392,8 +427,11 @@ function applyResult(res){
       goToId(parsed.id);
       break;
 
-    default:
-      toast("…", 600);
+    default: {
+      // Fallback si no hay resultado: navegar en el mundo actual
+      const target = dir === "left" ? prevIdInWorld() : nextIdInWorld();
+      goToId(target);
+    }
   }
 }
 
@@ -450,8 +488,8 @@ function toast(msg, ms=1400){
 window.addEventListener("keydown",(e)=>{
   const cur = state.map[state.order[state.index]];
   if(!cur) return;
-  if(e.key==="ArrowLeft"){ applyResult(cur.resL||""); }
-  if(e.key==="ArrowRight"){ applyResult(cur.resR||""); }
+  if(e.key==="ArrowLeft"){ applyResult(cur.resL||"", "left"); }
+  if(e.key==="ArrowRight"){ applyResult(cur.resR||"", "right"); }
   if(e.key.toLowerCase()==="r"){ restartWorld(); }
 });
 
