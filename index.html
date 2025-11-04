@@ -7,74 +7,87 @@
 <meta name="theme-color" content="#0b0f14"/>
 <link rel="icon" href="data:,">
 <style>
- :root{
-  --bg:#0b0f14; --panel:#101722; --ink:#e6eef7; --muted:#9fb3c9;
-  --shadow:rgba(0,0,0,.5);
-  --card-w:min(92vw,520px); --ratio:1.25; --card-h:calc(var(--card-w)*var(--ratio));
-  --radius:16px;
-  /* ↑ subimos la altura para que quepan dos líneas sin cortar */
-  --choices-h:96px;
-}
-
-/* Descripción: deja hueco extra para las decisiones más altas */
-.text{
-  position:absolute; left:0; right:0; bottom:calc(var(--choices-h) + 16px);
-  padding:14px 16px; font-size:15px; line-height:1.4; color:#e9f1fb;
-  background:linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0));
-}
-
-/* Decisiones SOLO texto (no clicables) */
-.choices{
-  position:absolute; left:14px; right:14px; bottom:10px;
-  min-height:var(--choices-h);
-  display:flex; gap:12px; align-items:stretch; justify-content:space-between;
-  pointer-events:none;
-}
-
-/* Contenedor de cada opción */
-.choice{
-  flex:1; display:flex; align-items:center; gap:8px;
-  padding:12px 14px; border:1px solid rgba(255,255,255,.08); border-radius:14px;
-  background:rgba(255,255,255,.06); backdrop-filter:blur(4px);
-  min-width:0; /* importante para que permita wraps */
-}
-
-/* Texto completo (sin elipsis) */
-.choice .opt{
-  font-weight:700; font-size:15px; line-height:1.25;
-  white-space:normal; overflow:visible; text-overflow:clip;
-}
-
-/* Flecha */
-.choice .arr{ opacity:.9; font-size:16px; flex:0 0 auto }
-
-/* Alineaciones: flecha a cada extremo */
-.choice-left{ justify-content:flex-start; text-align:left; }
-.choice-left .arr{ order:-1; margin-right:8px; }  /* flecha a la IZQ */
-
-.choice-right{ justify-content:flex-end; text-align:right; }
-.choice-right .arr{ order:1; margin-left:8px; }   /* flecha a la DER */
-
-/* (Opcional) en pantallas muy estrechas, una opción por fila */
-@media (max-width:360px){
-  .choices{ flex-direction:column; gap:8px; }
-  :root{ --choices-h:120px; }
-}
-
-
-  .hint{position:absolute;top:8px;left:8px;font-size:11px;color:#c9d5e7;background:rgba(0,0,0,.35);padding:6px 8px;border-radius:10px}
-  .toast{
-    position:fixed;left:50%;transform:translateX(-50%);bottom:18px;z-index:4;
-    background:#0e1520;border:1px solid rgba(255,255,255,.08);color:#dfe8f5;
-    padding:10px 12px;border-radius:12px;font-size:13px;opacity:0;pointer-events:none;box-shadow:0 10px 30px var(--shadow);
+  :root{
+    --bg:#0b0f14; --panel:#101722; --ink:#e6eef7; --muted:#9fb3c9;
+    --shadow:rgba(0,0,0,.5);
+    --radius:16px;
+    --choices-h:96px; /* altura reservada para decisiones */
   }
-  .toast.show{opacity:1;transition:opacity .25s}
 
-  /* Video fondo */
+  /* Reset básico + suavizar gestos */
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial}
+  body{overflow:hidden;-webkit-user-select:none;user-select:none;touch-action:pan-y} /* permite scroll vertical del sistema, capturamos el horizontal */
+
+  /* Fondo video/velo */
   .bg{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none}
   .bg video{position:absolute;width:100%;height:100%;object-fit:cover;filter:brightness(.9) saturate(.95) contrast(1)}
   .bg::after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 110%, rgba(0,0,0,.55), rgba(0,0,0,.15) 50%, rgba(0,0,0,.05) 70%)}
-  .veil{position:fixed;inset:0;background:linear-gradient(to bottom, rgba(5,8,12,.4), rgba(5,8,12,.25));z-index:0}
+  .veil{position:fixed;inset:0;background:linear-gradient(to bottom, rgba(5,8,12,.40), rgba(5,8,12,.25));z-index:0}
+
+  /* Estructura */
+  .wrap{position:relative;min-height:100vh;z-index:1}
+  header{position:fixed;left:0;right:0;top:0;z-index:2;display:flex;justify-content:space-between;align-items:center;
+    padding:calc(8px + env(safe-area-inset-top,0px)) 12px 8px}
+  .topbar{display:flex;gap:8px;font-size:12px;color:#c9d5e7;background:rgba(0,0,0,.35);padding:6px 10px;border-radius:12px}
+  .kb{min-width:24px}
+
+  /* Tablero/carta */
+  .board{position:relative;min-height:100vh}
+  .card{
+    position:relative;
+    width:100%; height:100vh;
+    overflow:hidden; border-radius:0;
+    will-change:transform,opacity;
+    touch-action:none; /* el swipe lo controlamos nosotros */
+  }
+  .card img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+  .fade{position:absolute;inset:0;background:linear-gradient(to bottom, transparent 45%, rgba(0,0,0,.25) 65%, rgba(0,0,0,.55) 85%)}
+
+  /* Texto descriptivo: deja hueco para decisiones y barra iOS */
+  .text{
+    position:absolute; left:0; right:0;
+    bottom:calc(var(--choices-h) + 16px + env(safe-area-inset-bottom,0px));
+    padding:14px 16px; font-size:15px; line-height:1.45; color:#e9f1fb;
+    background:linear-gradient(to top, rgba(0,0,0,.55), rgba(0,0,0,0));
+  }
+
+  /* Pista superior */
+  .hint{position:absolute;top:calc(8px + env(safe-area-inset-top,0px));left:8px;font-size:11px;color:#c9d5e7;background:rgba(0,0,0,.35);padding:6px 8px;border-radius:10px}
+
+  /* Decisiones SOLO texto (no clicables) */
+  .choices{
+    position:absolute; left:14px; right:14px;
+    bottom:calc(10px + env(safe-area-inset-bottom,0px));
+    min-height:var(--choices-h);
+    display:flex; gap:12px; align-items:stretch; justify-content:space-between;
+    pointer-events:none; /* no interactúan, solo se lee; el swipe va sobre .card */
+  }
+  .choice{
+    flex:1; display:flex; align-items:center; gap:8px; min-width:0;
+    padding:12px 14px; border:1px solid rgba(255,255,255,.08); border-radius:14px;
+    background:rgba(255,255,255,.06); backdrop-filter:blur(4px);
+  }
+  .choice .opt{font-weight:700; font-size:15px; line-height:1.25; white-space:normal; overflow:visible; text-overflow:clip}
+  .choice .arr{opacity:.9; font-size:16px; flex:0 0 auto}
+  .choice-left{ justify-content:flex-start; text-align:left; }
+  .choice-left .arr{ order:-1; margin-right:8px; }
+  .choice-right{ justify-content:flex-end; text-align:right; }
+  .choice-right .arr{ order:1; margin-left:8px; }
+
+  /* En pantallas estrechas: opciones apiladas */
+  @media (max-width:360px){
+    .choices{ flex-direction:column; gap:8px }
+    :root{ --choices-h:120px }
+  }
+
+  .toast{
+    position:fixed;left:50%;transform:translateX(-50%);
+    bottom:calc(18px + env(safe-area-inset-bottom,0px));z-index:4;
+    background:#0e1520;border:1px solid rgba(255,255,255,.08);color:#dfe8f5;
+    padding:10px 12px;border-radius:12px;font-size:13px;opacity:0;pointer-events:none;box-shadow:0 10px 30px var(--shadow)
+  }
+  .toast.show{opacity:1;transition:opacity .25s}
 </style>
 </head>
 <body>
@@ -94,7 +107,7 @@
 /* ========= CONFIG ========= */
 const PROJECT_REF = "rdoivmucgucouauyqdos";
 const DATA_BASE   = `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/data`;
-const IMG_BASE    = `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/swiper`;
+const IMG_BASE    = `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/swiper`;   // <-- sin /cards
 const WORLD_BASE  = `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/worlds`;
 const URL_CARDS   = `${DATA_BASE}/cards.json`;
 const URL_IMAGES  = `${DATA_BASE}/images.json`;
@@ -131,7 +144,6 @@ async function boot(){
 }
 
 function normalizeCard(o){
-  // acepta tus nombres de clave: opcion_izquierda / resultado_izquierda / ...
   const pick = (obj, keys) => keys.find(k=>k in obj) && obj[keys.find(k=>k in obj)];
   return {
     mundo:   pick(o,["Mundo","mundo"]) || "",
@@ -179,8 +191,7 @@ function imageUrlFor(card){
       const fname = (x.filename||x.file||"").toLowerCase().replace(/[^\w]+/g,"");
       return fname.includes(idKey);
     });
-    // PRIORIDAD al filename (tu image_url tiene el dominio mal escrito)
-    if (hit?.filename)  return `${IMG_BASE}/${hit.filename}`;
+    if (hit?.filename)  return `${IMG_BASE}/${hit.filename}`;  // priorizamos filename en tu bucket
     if (hit?.image_url) return hit.image_url;
     if (hit?.url)       return hit.url;
   }
@@ -199,12 +210,12 @@ function renderCard(card){
 
   const hint = el("div","hint"); hint.textContent = "Desliza ← / →";
 
-  // Decisiones solo texto
+  // Decisiones (sólo informativas)
   const choices = el("div","choices");
-  const chL = el("div","choice");
+  const chL = el("div","choice choice-left");
   chL.innerHTML = `<span class="arr">←</span><span class="opt">${card.optL || labelFromResult(card.resL,"Izquierda")}</span>`;
-  const chR = el("div","choice");
-  chR.innerHTML = `<span class="arr">→</span><span class="opt">${card.optR || labelFromResult(card.resR,"Derecha")}</span>`;
+  const chR = el("div","choice choice-right");
+  chR.innerHTML = `<span class="opt">${card.optR || labelFromResult(card.resR,"Derecha")}</span><span class="arr">→</span>`;
   choices.append(chL,chR);
 
   wrap.append(img, fade, text, choices, hint);
@@ -262,22 +273,19 @@ function restartWorld(){
   goToId(state.order[0]);
 }
 
-/* Captura solo el primer token [A-Za-z0-9_] tras →/LOOP (ignora emojis, paréntesis, textos extra) */
+/* Captura solo el primer token tras →/LOOP (ignora extras) */
 function parseResult(s){
   const clean = slug(s||"");
 
   if (/fin\s*del\s*juego/i.test(clean)) return {type:"finish"};
   if (/reinicia/i.test(clean)) return {type:"restart"};
 
-  // PASS → CASTILLO / PASS → MUNDO 3
   let m = clean.match(/pass.*?→\s*([A-Za-z0-9_]+)/i);
   if (m) return {type:"pass", to: m[1]};
 
-  // LOOP → 2B / LOOP a 1
   m = clean.match(/loop\s*(?:→|a)\s*([A-Za-z0-9_]+)/i);
   if (m) return {type:"goto", id: normalizeShortId(m[1])};
 
-  // → 3D_end_savia (transition)  -> 3D_end_savia
   m = clean.match(/→\s*([A-Za-z0-9_]+)/);
   if (m) return {type:"goto", id: normalizeShortId(m[1])};
 
@@ -291,7 +299,7 @@ function normalizeShortId(token){
   const hit = keys.find(k=>{
     const kk = k.toLowerCase();
     return kk.endsWith(`_${t}`) || kk.includes(`_${t}_`) || kk===t;
-  });
+    });
   return hit || token;
 }
 
@@ -332,11 +340,11 @@ function enableSwipe(el, cb){
   let startX=0, startY=0, dx=0, dy=0, active=false;
   const onDown = (e)=>{ active=true; const p=point(e); startX=p.x; startY=p.y; dx=dy=0; el.setPointerCapture?.(e.pointerId); };
   const onMove = (e)=>{ if(!active) return; const p=point(e); dx=p.x-startX; dy=p.y-startY;
-    el.style.transform = `translate3d(${dx}px, ${dy*0.2}px, 0) rotate(${dx*0.05}deg)`; el.style.opacity = String(Math.max(.35,1-Math.abs(dx)/500)); };
+    el.style.transform = `translate3d(${dx}px, ${dy*0.15}px, 0) rotate(${dx*0.05}deg)`; el.style.opacity = String(Math.max(.35,1-Math.abs(dx)/500)); };
   const onUp = ()=>{ if(!active) return; active=false; const th=60; if (dx<-th) cb("left"); else if(dx>th) cb("right");
     el.style.transition="transform .18s ease, opacity .18s ease"; el.style.transform="translate3d(0,0,0) rotate(0)"; el.style.opacity="1"; setTimeout(()=> el.style.transition="", 200); };
   el.addEventListener("pointerdown", onDown);
-  window.addEventListener("pointermove", onMove);
+  window.addEventListener("pointermove", onMove, {passive:true});
   window.addEventListener("pointerup", onUp);
   window.addEventListener("pointercancel", onUp);
 }
