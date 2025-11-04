@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"/>
-<title>Swiper – El Bosque de los Susurros</title>
+<title>Swiper – Historia de 4 mundos</title>
 <meta name="theme-color" content="#0b0f14"/>
 <style>
   :root{
@@ -16,7 +16,7 @@
   *{box-sizing:border-box}
   html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Arial}
   a{text-decoration:none;color:inherit}
-  .wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;gap:16px;padding:18px}
+  .wrap{min-height:100vh;display:flex;flex-direction:column;align-items:center;gap:16px;padding:18px;position:relative;z-index:1}
   header{width:100%;max-width:720px;display:flex;align-items:center;justify-content:space-between;gap:12px}
   h1{font-size:18px;margin:0;opacity:.9}
   .crumbs{font-size:12px;color:var(--muted)}
@@ -42,114 +42,203 @@
     backdrop-filter: blur(4px); cursor:pointer;
   }
   .btn:active{transform:translateY(1px);opacity:.9}
-  .btn.left{outline:1px solid rgba(255,255,255,.06)}
-  .btn.right{outline:1px solid rgba(255,255,255,.06)}
   .hint{position:absolute;top:8px;font-size:11px;color:#c9d5e7;background:rgba(0,0,0,.35);padding:6px 8px;border-radius:10px;left:8px}
   .toast{
     position:fixed;left:50%;transform:translateX(-50%);
     bottom:18px;background:#0e1520;border:1px solid rgba(255,255,255,.08);
     color:#dfe8f5;padding:10px 12px;border-radius:12px;font-size:13px;opacity:0;pointer-events:none;
-    box-shadow:0 10px 30px var(--shadow);
+    box-shadow:0 10px 30px var(--shadow);z-index:4
   }
   .toast.show{opacity:1;transition:opacity .25s}
   .pill{font-size:11px;color:#9fb3c9;padding:4px 8px;border:1px solid rgba(255,255,255,.08);border-radius:999px}
   .topbar{display:flex;align-items:center;gap:10px}
   .ghost{opacity:.7}
   .kb{display:none}@media (min-width:700px){.kb{display:block;color:var(--muted);font-size:12px}}
+
+  /* Vídeo de fondo */
+  .bg{
+    position:fixed; inset:0; z-index:0; overflow:hidden; pointer-events:none;
+  }
+  .bg video{
+    position:absolute; width:100%; height:100%;
+    object-fit:cover; filter:brightness(.9) saturate(.95) contrast(1);
+  }
+  .bg::after{
+    content:""; position:absolute; inset:0;
+    background:radial-gradient(ellipse at 50% 110%, rgba(0,0,0,.55), rgba(0,0,0,.15) 50%, rgba(0,0,0,.05) 70%);
+  }
+
+  /* Capa para asegurar contraste del contenido */
+  .veil{position:fixed;inset:0;background:linear-gradient(to bottom, rgba(5,8,12,.4), rgba(5,8,12,.25));z-index:0}
 </style>
 </head>
 <body>
+<!-- Vídeo de fondo -->
+<div class="bg">
+  <video id="bgvid" playsinline muted loop autoplay poster="" ></video>
+</div>
+<div class="veil"></div>
+
 <div class="wrap">
   <header>
     <div class="topbar">
-      <span class="pill" id="worldTag">Bosque</span>
-      <span class="crumbs" id="crumbs">1 / 1</span>
+      <span class="pill" id="worldTag">—</span>
+      <span class="crumbs" id="crumbs">—</span>
     </div>
     <div class="kb">← izquierda · → derecha · R reiniciar</div>
   </header>
 
-  <div class="board" id="board">
-    <!-- Las cartas se inyectan aquí -->
-  </div>
+  <div class="board" id="board"></div>
 
   <div class="toast" id="toast"></div>
 </div>
 
 <script>
 /* =============================
-   CONFIG
+   CONFIG (Supabase public URLs)
 ============================= */
+const PROJECT_REF = "rdoivmucgucouauyqdos";  // tu id de proyecto
+const DATA_BASE   = `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/data`;
+const IMG_BASE    = `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/swiper`;   // imágenes de cartas (bucket swiper)
+const WORLD_BASE  = `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/worlds`;  // por si quieres construir a mano
 
-// Supabase public object URL (para LEER imágenes públicas)
-const PROJECT_REF = "rdoivmucgucouauyqdos"; // si cambias de proyecto, ajusta esto
-const PUBLIC_BASE = `https://${PROJECT_REF}.supabase.co/storage/v1/object/public/swiper`;
+const URL_CARDS   = `${DATA_BASE}/cards.json`;
+const URL_IMAGES  = `${DATA_BASE}/images.json`;   // mapping opcional filename → url
+const URL_WORLDS  = `${DATA_BASE}/worlds.json`;
 
-// Utilidad: genera filename si no viene dado (convierte id a snake + .png)
+/* =============================
+   UTILS
+============================= */
 const slug = s => String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"")
   .replace(/[^a-zA-Z0-9]+/g,"_").replace(/^_+|_+$/g,"").toLowerCase();
 
-
-// 🔹 EJEMPLO mínimo: 1 carta con tu imagen generada
-// Sustituye/expande con tu dataset real o haz fetch a tu JSON.
-const CARDS = [
-  {
-    mundo: "El Bosque de los Susurros",
-    id: "carta_1_despertar",
-    tipo: "decision",
-    texto: "Despiertas otra vez. El bosque respira contigo. El aire parece esperar tu primer movimiento.",
-    optL: "Quedarte escuchando el viento",
-    resL: "→ 2B",
-    optR: "Soplar las hojas del suelo",
-    resR: "→ 2A",
-    // si ya tienes el nombre exacto de archivo, ponlo en imageFilename:
-    imageFilename: "el_bosque_de_los_carta_1_despertar.png",
-    // si no, el engine derivará uno como slug(id)+".png"
-  }
-];
-
-// Si quisieras cargar todas tus cartas desde un JSON publicado:
-// fetch("https://TU_DOMINIO/cartas.json").then(r => r.json()).then(d => { CARDS.splice(0,CARDS.length,...d); init(); });
+const byId = (arr, key="id") => Object.fromEntries(arr.map(o => [o[key], o]));
 
 /* =============================
-   ENGINE BÁSICO
+   STATE
 ============================= */
-
-const byId = (arr) => Object.fromEntries(arr.map(o => [o.id, o]));
 const state = {
-  world: "El Bosque de los Susurros",
-  index: 0,        // índice actual dentro de "order"
-  order: [],       // secuencia navegable (por id)
-  map: {}          // mapa id → carta
+  cards: [],          // todas las cartas (57)
+  map: {},            // id → carta
+  images: [],         // listado de {filename, url} (si existe)
+  worlds: {},         // nombre mundo → url mp4
+  world: "",          // mundo actual
+  order: [],          // ids navegables del mundo actual
+  index: 0            // posición actual
 };
 
-// Para demo: sólo secuencia con la primera carta. En producción,
- // puedes construir "order" leyendo tu tabla (por mundo) o ir saltando por ID.
-state.order = CARDS.map(c => c.id);
-state.map = byId(CARDS);
+/* =============================
+   DATA LOADING
+============================= */
+async function loadJSON(url){
+  const r = await fetch(url);
+  if(!r.ok) throw new Error(`No pude cargar ${url}`);
+  const contentType = r.headers.get("content-type")||"";
+  if(contentType.includes("application/json")) return r.json();
+  const tx = await r.text(); return JSON.parse(tx);
+}
 
+async function boot(){
+  // Carga en paralelo
+  const [cards, images, worlds] = await Promise.all([
+    loadJSON(URL_CARDS),
+    loadJSON(URL_IMAGES).catch(()=>[]), // por si no existe
+    loadJSON(URL_WORLDS)
+  ]);
+
+  state.cards  = Array.isArray(cards) ? cards : cards.data || [];
+  state.map    = byId(state.cards, "ID / Nombre".includes("ID / Nombre") ? "ID / Nombre" : "id");
+
+  // Normalizamos si tu cards.json viene con claves en español
+  state.cards = state.cards.map(raw => normalizeCard(raw));
+  state.map   = byId(state.cards);
+
+  state.images = Array.isArray(images) ? images : (images.data||[]);
+  state.worlds = worlds || {};
+
+  // Mundo inicial = del primer registro
+  state.world = state.cards[0]?.mundo || "El Bosque de los Susurros";
+  rebuildOrderForWorld(state.world);
+
+  // Poner vídeo de fondo
+  setWorldBackground(state.world);
+
+  // Render primero
+  goToId(state.order[0]);
+}
+
+function normalizeCard(o){
+  // Acepta tanto el formato columna-español de tu tabla como claves JS
+  return {
+    mundo:   o.Mundo || o.mundo,
+    id:      (o["ID / Nombre"] || o.id || o.ID || o.Nombre || "").toString(),
+    tipo:    o.Tipo || o.tipo || "decision",
+    texto:   o["Texto (breve)"] || o.texto || "",
+    optL:    o["Opción ← (izquierda)"] || o.optL || "",
+    resL:    o["Resultado ←"] || o.resL || "",
+    optR:    o["Opción → (derecha)"] || o.optR || "",
+    resR:    o["Resultado →"] || o.resR || "",
+    image_file: o.image_file || o.imageFilename || null, // si ya lo metiste
+    prompt:  o["Prompt completo"] || o.prompt || ""
+  };
+}
+
+function rebuildOrderForWorld(worldName){
+  const list = state.cards.filter(c => c.mundo === worldName);
+  // Por defecto, las ordenamos por ID alfabético para tener recorrido estable
+  list.sort((a,b)=> a.id.localeCompare(b.id, 'es', {numeric:true, sensitivity:'base'}));
+  state.order = list.map(c => c.id);
+  state.index = 0;
+}
+
+/* =============================
+   BACKGROUND VIDEO
+============================= */
+function setWorldBackground(worldName){
+  const vid = document.getElementById("bgvid");
+  const url = state.worlds[worldName] || guessWorldUrl(worldName);
+  if(!url) return;
+
+  if (vid.src !== url) {
+    // opcional: poster estático mientras cambia
+    // vid.setAttribute("poster", "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==");
+    vid.src = url;
+    // En iOS Low Power Mode puede requerir play tras interacción
+    vid.play?.().catch(()=>{/* ignorar */});
+  }
+}
+
+function guessWorldUrl(worldName){
+  // fallback si no existe worlds.json
+  const k = slug(worldName);
+  if (k.includes("bosque"))   return `${WORLD_BASE}/bosque_bg.mp4`;
+  if (k.includes("castillo")) return `${WORLD_BASE}/castillo_bg.mp4`;
+  if (k.includes("monstruo")) return `${WORLD_BASE}/monstruo_bg.mp4`;
+  if (k.includes("princesa")) return `${WORLD_BASE}/princesa_bg.mp4`;
+  return "";
+}
+
+/* =============================
+   RENDER CARD
+============================= */
 function imageUrlFor(card){
-  const fname = card.imageFilename || (slug(card.id) + ".png");
-  return `${PUBLIC_BASE}/${fname}`;
-}
+  // 1) si tiene image_file explícito
+  if (card.image_file) return `${IMG_BASE}/${card.image_file}`;
 
-function el(tag, cls){
-  const n = document.createElement(tag);
-  if (cls) n.className = cls;
-  return n;
-}
+  // 2) intentar encontrar en images.json por coincidencia con el id
+  const idSlug = slug(card.id);
+  if (Array.isArray(state.images) && state.images.length){
+    const hit = state.images.find(x=>{
+      const fname = (x.filename||x.file||"").toLowerCase();
+      return fname.includes(idSlug);
+    });
+    if (hit?.url) return hit.url;
+    if (hit?.filename) return `${IMG_BASE}/${hit.filename}`;
+  }
 
-function setCrumbs(){
-  const crumbs = document.getElementById("crumbs");
-  crumbs.textContent = `${state.index+1} / ${state.order.length}`;
-  document.getElementById("worldTag").textContent = (state.map[state.order[state.index]]?.mundo) || "Mundo";
-}
-
-function toast(msg, ms=1400){
-  const t = document.getElementById("toast");
-  t.textContent = msg;
-  t.classList.add("show");
-  clearTimeout(t._h);
-  t._h = setTimeout(()=> t.classList.remove("show"), ms);
+  // 3) construir: <slug_mundo>_<slug_id>.png
+  const fname = `${slug(card.mundo)}_${idSlug}.png`;
+  return `${IMG_BASE}/${fname}`;
 }
 
 function renderCard(card){
@@ -157,8 +246,6 @@ function renderCard(card){
   board.innerHTML = "";
 
   const wrap = el("div","card");
-  wrap.style.transform = "translate3d(0,0,0)";
-
   const img = el("img");
   img.src = imageUrlFor(card);
   img.alt = card.id;
@@ -172,8 +259,8 @@ function renderCard(card){
   hint.textContent = "Desliza ← / →";
 
   const choices = el("div","choices");
-  const bL = el("button","btn left");
-  const bR = el("button","btn right");
+  const bL = el("button","btn");
+  const bR = el("button","btn");
   bL.textContent = card.optL || "←";
   bR.textContent = card.optR || "→";
   bL.onclick = ()=> applyResult(card.resL || "");
@@ -183,7 +270,6 @@ function renderCard(card){
   wrap.append(img, fade, text, choices, hint);
   board.append(wrap);
 
-  // Gestos
   enableSwipe(wrap, (dir)=> {
     if (dir==="left") applyResult(card.resL || "");
     if (dir==="right") applyResult(card.resR || "");
@@ -192,38 +278,56 @@ function renderCard(card){
   setCrumbs();
 }
 
+function setCrumbs(){
+  const crumbs = document.getElementById("crumbs");
+  crumbs.textContent = `${state.index+1} / ${state.order.length}`;
+  document.getElementById("worldTag").textContent = state.world;
+}
+
+function el(tag, cls){
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  return n;
+}
+
+/* =============================
+   NAVIGATION / PARSING
+============================= */
 function goToId(id){
-  // si el id existe en el mapa actual, lo renderizamos
   const card = state.map[id];
-  if (!card){
-    toast(`No encuentro la carta "${id}" (aún no cargada).`);
-    return;
-  }
-  state.index = state.order.indexOf(id);
-  if (state.index < 0){
-    // si la carta existe pero no está en order, la añadimos al vuelo
-    state.order.push(id);
-    state.index = state.order.length-1;
+  if(!card){ toast(`No encuentro la carta "${id}"`); return; }
+
+  // si cambió de mundo (por un GOTO transversal), actualizamos estado
+  if (card.mundo !== state.world){
+    state.world = card.mundo;
+    rebuildOrderForWorld(state.world);
+    setWorldBackground(state.world);
+    // recolocar el índice según la nueva order
+    state.index = state.order.indexOf(card.id);
+  } else {
+    state.index = state.order.indexOf(card.id);
+    if (state.index < 0){ state.order.push(card.id); state.index = state.order.length-1; }
   }
   renderCard(card);
 }
 
 function restartWorld(){
-  // busca la primera carta de este mundo en order
-  const first = CARDS.find(c => c.mundo === state.world) || CARDS[0];
-  state.world = first.mundo;
-  goToId(first.id);
+  rebuildOrderForWorld(state.world);
+  setWorldBackground(state.world);
+  goToId(state.order[0]);
 }
 
 function parseResult(s){
   const clean = String(s||"").trim();
 
+  if (!clean) return {type:"noop"};
+
   // FIN
   if (/fin del juego/i.test(clean)) return {type:"finish"};
 
-  // PASS → MUNDO X
-  const pass = clean.match(/pass\s*→\s*(mundo\s*\d+|castillo|monstruo|princesa)/i);
-  if (pass) return {type:"pass", to: pass[1].toUpperCase()};
+  // PASS → MUNDO X (admite palabras)
+  const pass = clean.match(/pass\s*→\s*([^\s]+)/i);
+  if (pass) return {type:"pass", to: pass[1]};
 
   // REINICIA
   if (/reinicia/i.test(clean)) return {type:"restart"};
@@ -232,22 +336,30 @@ function parseResult(s){
   const loop = clean.match(/loop\s*→\s*([^\s]+)/i);
   if (loop) return {type:"goto", id: normalizeShortId(loop[1])};
 
-  // → 2B / → 3A_end_algo
+  // → 2B / → 3A_end_algo / → carta_...
   const goto = clean.match(/→\s*([^\s]+)/);
   if (goto) return {type:"goto", id: normalizeShortId(goto[1])};
 
   return {type:"noop"};
 }
 
-// Convierte “2B” a “carta_2B_...” si existe una sola que empiece así.
-// Para producción: usa un índice completo de tus IDs.
 function normalizeShortId(token){
-  // si ya parece un id completo, lo devolvemos
-  if (/^carta_/i.test(token)) return token;
-  // intenta encontrar por prefijo (p.ej. "2B")
-  const key = token.toLowerCase();
-  const hit = Object.keys(state.map).find(k => k.toLowerCase().includes(`_${key}`));
+  const t = token.toLowerCase();
+  if (t.startsWith("carta_")) return token;
+  // buscar por sufijo típico "2b", "3a_end"
+  const hit = Object.keys(state.map).find(k => k.toLowerCase().includes(`_${t}`));
   return hit || token;
+}
+
+function canonicalWorldName(token){
+  const t = slug(token);
+  if (t.includes("castillo")) return "El Castillo de los Espejos";
+  if (t.includes("monstruo")) return "El Monstruo Final";
+  if (t.includes("princesa")) return "La Princesa Durmiente";
+  if (t.includes("bosque") || t.includes("mundo_1")) return "El Bosque de los Susurros";
+  // fallback: si en cards existe un mundo con esa palabra
+  const worlds = [...new Set(state.cards.map(c=>c.mundo))];
+  return worlds.find(w => slug(w).includes(t)) || state.world;
 }
 
 function applyResult(res){
@@ -256,19 +368,23 @@ function applyResult(res){
   switch(parsed.type){
     case "finish":
       toast("FIN DEL JUEGO ✨", 1800);
-      // aquí podrías emitir un evento o redirigir a tu hub:
-      // location.href = "/hub";
       break;
 
-    case "pass":
-      toast(`Pasas a ${parsed.to} ➜`, 1200);
-      // aquí montarías el cambio de dataset de cartas por mundo.
-      // demo: simplemente reinicio
-      restartWorld();
+    case "pass":{
+      const nextW = canonicalWorldName(parsed.to);
+      if (nextW !== state.world){
+        state.world = nextW;
+        rebuildOrderForWorld(state.world);
+        setWorldBackground(state.world);
+        goToId(state.order[0]);
+      } else {
+        restartWorld();
+      }
       break;
+    }
 
     case "restart":
-      toast("Reinicias el mundo ↺", 900);
+      toast("Reinicias ↺", 900);
       restartWorld();
       break;
 
@@ -306,7 +422,6 @@ function enableSwipe(el, cb){
     const thresh = 60;
     if (dx < -thresh) cb("left");
     else if (dx > thresh) cb("right");
-    // reset
     el.style.transition = "transform .18s ease, opacity .18s ease";
     el.style.transform = "translate3d(0,0,0) rotate(0)";
     el.style.opacity = "1";
@@ -322,8 +437,16 @@ function enableSwipe(el, cb){
 function point(e){ return {x:e.clientX ?? (e.touches?.[0]?.clientX||0), y:e.clientY ?? (e.touches?.[0]?.clientY||0)}; }
 
 /* =============================
-   KEYBOARD + INIT
+   MISC
 ============================= */
+function toast(msg, ms=1400){
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._h);
+  t._h = setTimeout(()=> t.classList.remove("show"), ms);
+}
+
 window.addEventListener("keydown",(e)=>{
   const cur = state.map[state.order[state.index]];
   if(!cur) return;
@@ -332,13 +455,13 @@ window.addEventListener("keydown",(e)=>{
   if(e.key.toLowerCase()==="r"){ restartWorld(); }
 });
 
-function init(){
-  // set world from first card
-  state.world = CARDS[0]?.mundo || "Mundo";
-  goToId(state.order[0]);
-}
-init();
-
+/* =============================
+   START
+============================= */
+boot().catch(err=>{
+  console.error(err);
+  toast("Error cargando datos");
+});
 </script>
 </body>
 </html>
