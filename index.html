@@ -111,9 +111,9 @@
   .toast.show{opacity:1;transition:opacity .25s}
   :root{
   /* duraciones de animación */
-  --swipe-dur: 200ms;
-  --restart-fade: 1100ms;
-    --linger-ms: 2500ms;   /* tiempo para leer antes de hacer fade-out */
+  --swipe-dur: 300ms;
+  --restart-fade: 1500ms;
+    --linger-ms: 3500ms;   /* tiempo para leer antes de hacer fade-out */
 }
 
 /* transición general de las cartas */
@@ -346,47 +346,72 @@ function restartWorld(){
 
 /* ======== PARSER ======== */
 function parseResult(s){
-  const clean = slug(s||"");
+  const raw = String(s||"");
 
-  if (/fin\s*del\s*juego/i.test(clean)) return {type:"finish"};
-  if (/reinicia/i.test(clean)) return {type:"restart"};
+  // normaliza acentos y quita rarezas
+  const base = raw.normalize("NFD").replace(/[\u0300-\u036f]/g,"");
 
-  let m = clean.match(/pass.*?→\s*([A-Za-z0-9_]+)/i);
-  if (m) return {type:"pass", to: m[1]};
+  // colapsa espacios y convierte guiones a guion_bajo para coincidir con IDs
+  const collapsed = base.replace(/\s+/g, "").replace(/-/g, "_");
 
-  m = clean.match(/loop\s*(?:→|a)\s*([A-Za-z0-9_]+)/i);
-  if (m) return {type:"goto", id: normalizeShortId(m[1])};
+  // helpers de extracción
+  const takeToken = (re) => {
+    const m = collapsed.match(re);
+    return m ? normalizeShortId(m[1]) : null;
+  };
 
-  m = clean.match(/→\s*([A-Za-z0-9_]+)/);
-  if (m) return {type:"goto", id: normalizeShortId(m[1])};
+  // casos especiales
+  if (/fin\s*del\s*juego/i.test(base)) return {type:"finish"};
+  if (/reinicia/i.test(base))          return {type:"restart"};
+
+  // PASS → CASTILLO / PASS→MUNDO_3
+  let t = takeToken(/pass.*?→([A-Za-z0-9_]+)/i);
+  if (t) return {type:"pass", to: t};
+
+  // LOOP → 6B / loopa6b
+  t = takeToken(/loop(?:→|a)([A-Za-z0-9_]+)/i);
+  if (t) return {type:"goto", id: t};
+
+  // → 6B / →6_b / →6B(derrota)
+  t = takeToken(/→([A-Za-z0-9_]+)/);
+  if (t) return {type:"goto", id: t};
 
   return {type:"noop"};
 }
 
+
 function normalizeShortId(token){
-  const preferWorld = state.world;              // mundo de la carta actual
-  const t = String(token||"").toLowerCase();
-  const keys = Object.keys(state.map);
+  const preferWorld = state.world;
+  let t = String(token||"").trim().toLowerCase();
   if (!t) return token;
 
-  // función de puntuación: primero forma del id, luego mundo preferido
+  // si ya viene con prefijo tipo "carta_6b", déjalo
+  if (t.startsWith("carta_")) return token;
+
+  // homogeneiza: guiones a guion_bajo
+  t = t.replace(/-/g, "_");
+
+  const keys = Object.keys(state.map);
+
   const score = (id)=>{
     const kk = id.toLowerCase();
     let s = 0;
-    if (kk === t) s += 100;                     // match exacto
-    if (kk.endsWith(`_${t}`)) s += 60;          // sufijo _2, _escaleras, etc.
-    if (kk.includes(`_${t}_`)) s += 40;         // _2_ en medio
-    if (kk.includes(t)) s += 20;                // contiene el token
-    if (state.map[id]?.mundo === preferWorld) s += 10; // preferir mismo mundo
+    if (kk === t) s += 120;                    // match exacto
+    if (kk.endsWith(`_${t}`)) s += 80;         // sufijo claro
+    if (kk.includes(`_${t}_`)) s += 60;        // segmento en medio
+    if (kk.startsWith(`${t}_`)) s += 50;       // prefijo claro
+    if (kk.includes(t)) s += 20;               // contiene
+    if (state.map[id]?.mundo === preferWorld) s += 15; // prioriza mundo actual
     return s;
   };
 
   const best = keys
     .map(id => [score(id), id])
-    .sort((a,b)=> b[0] - a[0])[0];
+    .sort((a,b)=> b[0]-a[0])[0];
 
   return (best && best[0] > 0) ? best[1] : token;
 }
+
 
 
 function canonicalWorldName(token){
