@@ -351,33 +351,35 @@ function parseResult(s){
   // normaliza acentos y quita rarezas
   const base = raw.normalize("NFD").replace(/[\u0300-\u036f]/g,"");
 
-  // colapsa espacios y convierte guiones a guion_bajo para coincidir con IDs
+  // colapsa espacios y convierte guiones a guion_bajo
   const collapsed = base.replace(/\s+/g, "").replace(/-/g, "_");
 
-  // helpers de extracción
-  const takeToken = (re) => {
+  // helper: opcionalmente normaliza como ID corto (solo para GOTO/LOOP)
+  const takeToken = (re, {normalize=true} = {}) => {
     const m = collapsed.match(re);
-    return m ? normalizeShortId(m[1]) : null;
+    if (!m) return null;
+    return normalize ? normalizeShortId(m[1]) : m[1];
   };
 
   // casos especiales
   if (/fin\s*del\s*juego/i.test(base)) return {type:"finish"};
   if (/reinicia/i.test(base))          return {type:"restart"};
 
-  // PASS → CASTILLO / PASS→MUNDO_3
-  let t = takeToken(/pass.*?→([A-Za-z0-9_]+)/i);
+  // PASS → CASTILLO / PASS→mundo_2  (NO normalizar a id de carta)
+  let t = takeToken(/pass.*?→([A-Za-z0-9_]+)/i, {normalize:false});
   if (t) return {type:"pass", to: t};
 
-  // LOOP → 6B / loopa6b
-  t = takeToken(/loop(?:→|a)([A-Za-z0-9_]+)/i);
+  // LOOP → 6B / loopa6b (sí normalizamos)
+  t = takeToken(/loop(?:→|a)([A-Za-z0-9_]+)/i, {normalize:true});
   if (t) return {type:"goto", id: t};
 
-  // → 6B / →6_b / →6B(derrota)
-  t = takeToken(/→([A-Za-z0-9_]+)/);
+  // → 6B / →6_b / →6B(derrota) (sí normalizamos)
+  t = takeToken(/→([A-Za-z0-9_]+)/, {normalize:true});
   if (t) return {type:"goto", id: t};
 
   return {type:"noop"};
 }
+
 
 
 function normalizeShortId(token){
