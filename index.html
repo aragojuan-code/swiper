@@ -432,56 +432,20 @@ function normalizeShortId(token){
 
 
 function canonicalWorldName(token){
-  const worldsList = [...new Set(state.cards.map(c => c.mundo))].filter(Boolean);
-  const norm = s => String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim();
-  const k = norm(token).replace(/-/g,"_");
+  const t = String(token||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+              .toLowerCase().replace(/-/g,"_").trim();
+  const worlds = [...new Set(state.cards.map(c=>c.mundo))];
 
-  // 1) Alias numéricos
-  if (/^(?:mundo[_\s]?)?1$/.test(k) || k==="bosque")   return "El Bosque de los Susurros";
-  if (/^(?:mundo[_\s]?)?2$/.test(k) || k==="castillo") return "El Castillo de los Espejos";
-  if (/^(?:mundo[_\s]?)?3$/.test(k) || /princesa/.test(k)) return "La Princesa Durmiente";
-  if (/^(?:mundo[_\s]?)?4$/.test(k)) return "El Monstruo Final";
+  if (/bosque|mundo_1|^1$/.test(t)) return "El Bosque de los Susurros";
+  if (/castillo|espejo|mundo_2|^2$/.test(t)) return "El Castillo de los Espejos";
+  if (/monstruo|mounstro|final|boss|mundo_3|^3$/.test(t)) return "El Monstruo Final";
+  if (/princesa|durmiente|mundo_4|^4$/.test(t)) return "La Princesa Durmiente";
 
-  // 2) Sinónimos y typos comunes
-  if (/(monstruo|mounstro|final|boss|jefe)/.test(k)) return "El Monstruo Final";
-  if (/castillo|espejo/.test(k)) return "El Castillo de los Espejos";
-  if (/princesa|durmiente/.test(k)) return "La Princesa Durmiente";
-  if (/bosque|susurros/.test(k)) return "El Bosque de los Susurros";
-
-  // 3) Intento directo por substring con la lista real (por si han cambiado los nombres)
-  const direct = worldsList.find(w => norm(w).includes(k));
-  if (direct) return direct;
-
-  // 4) Fuzzy match (Levenshtein) contra los nombres reales
-  const dist = (a,b)=>{
-    a = norm(a); b = norm(b);
-    const dp = Array.from({length:a.length+1}, (_,i)=>Array(b.length+1).fill(0));
-    for(let i=0;i<=a.length;i++) dp[i][0]=i;
-    for(let j=0;j<=b.length;j++) dp[0][j]=j;
-    for(let i=1;i<=a.length;i++){
-      for(let j=1;j<=b.length;j++){
-        const cost = a[i-1]===b[j-1]?0:1;
-        dp[i][j] = Math.min(
-          dp[i-1][j] + 1,      // borrar
-          dp[i][j-1] + 1,      // insertar
-          dp[i-1][j-1] + cost  // sustituir
-        );
-      }
-    }
-    return dp[a.length][b.length];
-  };
-
-  if (worldsList.length){
-    const scored = worldsList
-      .map(w => [dist(k, w), w])
-      .sort((a,b)=> a[0]-b[0]);
-    // si está razonablemente cerca (<=2–3), aceptamos
-    if (scored[0][0] <= 3) return scored[0][1];
-  }
-
-  // 5) Si nada funciona, quédate en el mundo actual
-  return state.world;
+  // intenta por coincidencia parcial
+  const match = worlds.find(w => w.toLowerCase().includes(t));
+  return match || state.world;
 }
+
 
 
 function applyResult(res){
