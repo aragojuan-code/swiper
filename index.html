@@ -109,6 +109,35 @@
     padding:10px 12px;border-radius:12px;font-size:13px;opacity:0;pointer-events:none;box-shadow:0 10px 30px var(--shadow)
   }
   .toast.show{opacity:1;transition:opacity .25s}
+  :root{
+  /* duraciones de animación */
+  --swipe-dur: 800ms;
+  --restart-fade: 1100ms;
+}
+
+/* transición general de las cartas */
+.card{
+  transition:
+    transform var(--swipe-dur) cubic-bezier(.22,.61,.36,1),
+    opacity   var(--swipe-dur) ease,
+    filter    var(--swipe-dur) ease;
+}
+
+/* salida al hacer swipe */
+.card.swipe-exit-left  { transform: translate3d(-120px,0,0) rotate(-4deg); opacity:0; filter: blur(6px); }
+.card.swipe-exit-right { transform: translate3d(120px,0,0)  rotate( 4deg); opacity:0; filter: blur(6px); }
+
+/* entrada de cada carta */
+.card.enter   { opacity:0; transform: scale(.985); filter: blur(6px); }
+.card.enter.show { opacity:1; transform: scale(1); filter: blur(0); }
+
+/* pantalla negra para reinicios/teletransportes */
+.fade-screen{
+  position:fixed; inset:0; background:rgba(0,0,0,0); z-index:6; pointer-events:none;
+  transition: background var(--restart-fade) ease;
+}
+.fade-screen.on { background:rgba(0,0,0,.85); }
+
 </style>
 </head>
 <body>
@@ -240,6 +269,9 @@ function renderCard(card){
 
   wrap.append(img, fade, text, choices, hint);
   board.append(wrap);
+// entrada suave
+wrap.classList.add('enter');
+requestAnimationFrame(()=> wrap.classList.add('show'));
 
   enableSwipe(wrap, dir=>{
     if(dir==="left")  applyResult(card.resL||"", "left");
@@ -254,6 +286,20 @@ function renderCard(card){
       applyResult(next.cmd, next.dir);
     }, 700);
   }
+}
+function screenFade(cb){
+  const dur = getCssMs('--restart-fade', 900);
+  const veil = document.createElement('div');
+  veil.className = 'fade-screen';
+  document.body.appendChild(veil);
+  // funde a negro
+  requestAnimationFrame(()=> veil.classList.add('on'));
+  setTimeout(()=>{
+    try{ cb?.(); }catch(e){}
+    // fade in
+    veil.classList.remove('on');
+    setTimeout(()=> veil.remove(), dur);
+  }, dur);
 }
 
 function labelFromResult(res, fallback){
@@ -336,37 +382,65 @@ function applyResult(res){
   const p = parseResult(res);
   switch(p.type){
     case "finish":
-      toast("FIN DEL JUEGO ✨", 900);
-      setTimeout(()=>{ state.world="El Bosque de los Susurros"; restartWorld(); }, 800);
-      break;
-    case "pass":
-      state.world = canonicalWorldName(p.to);
-      rebuildOrderForWorld(state.world);
-      setWorldBackground(state.world);
-      goToId(state.order[0]);
-      break;
+  toast("FIN DEL JUEGO ✨", 900);
+  screenFade(()=>{ state.world="El Bosque de los Susurros"; restartWorld(); });
+  break;
+
+   case "pass":
+  screenFade(()=>{
+    state.world = canonicalWorldName(p.to);
+    rebuildOrderForWorld(state.world);
+    setWorldBackground(state.world);
+    goToId(state.order[0]);
+  });
+  break;
+
     case "restart":
       restartWorld(); break;
     case "goto":
       goToId(p.id); break;
     default:
       toast("…", 500);
+     
+
   }
 }
 
 /* ========= SWIPE ========= */
 function enableSwipe(el, cb){
   let startX=0, startY=0, dx=0, dy=0, active=false;
+  const dur = getCssMs('--swipe-dur', 620);
+
   const onDown = (e)=>{ active=true; const p=point(e); startX=p.x; startY=p.y; dx=dy=0; el.setPointerCapture?.(e.pointerId); };
   const onMove = (e)=>{ if(!active) return; const p=point(e); dx=p.x-startX; dy=p.y-startY;
     el.style.transform = `translate3d(${dx}px, ${dy*0.15}px, 0) rotate(${dx*0.05}deg)`; el.style.opacity = String(Math.max(.35,1-Math.abs(dx)/500)); };
-  const onUp = ()=>{ if(!active) return; active=false; const th=60; if (dx<-th) cb("left"); else if(dx>th) cb("right");
-    el.style.transition="transform .18s ease, opacity .18s ease"; el.style.transform="translate3d(0,0,0) rotate(0)"; el.style.opacity="1"; setTimeout(()=> el.style.transition="", 200); };
+  const onUp = ()=>{ if(!active) return; active=false; const th=60;
+    // ¿hay swipe válido?
+    if (dx<-th || dx>th){
+      const dir = dx<0 ? 'left' : 'right';
+      // animación de salida y luego navegamos
+      el.classList.add(dir==='left' ? 'swipe-exit-left' : 'swipe-exit-right');
+      setTimeout(()=> cb(dir), dur);
+    }else{
+      // volver a sitio
+      el.style.transition="transform .18s ease, opacity .18s ease"; el.style.transform="translate3d(0,0,0) rotate(0)"; el.style.opacity="1"; setTimeout(()=> el.style.transition="", 200);
+    }
+  };
   el.addEventListener("pointerdown", onDown);
   window.addEventListener("pointermove", onMove, {passive:true});
   window.addEventListener("pointerup", onUp);
   window.addEventListener("pointercancel", onUp);
 }
+
+// lee variables CSS en ms
+function getCssMs(name, fallback){
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  if (!v) return fallback;
+  if (v.endsWith('ms')) return parseFloat(v);
+  if (v.endsWith('s'))  return parseFloat(v)*1000;
+  return fallback;
+}
+
 function point(e){ return {x: e.clientX ?? (e.touches?.[0]?.clientX||0), y: e.clientY ?? (e.touches?.[0]?.clientY||0)}; }
 
 /* ========= MISC ========= */
